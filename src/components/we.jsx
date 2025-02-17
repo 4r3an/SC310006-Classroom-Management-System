@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
-import { app } from '../firebase_config';
+import { app } from '../../firebase_config';
 
 function Login() {
   const [error, setError] = useState('');
