@@ -31,6 +31,9 @@ function Dashboard() {
         <div className="bg-white rounded-lg p-6 shadow-lg">
           <p className="text-gray-600">
             Welcome, {auth.currentUser?.email || 'User'}
+            <button onClick={() => navigate('/create-classroom')} className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+  Create Classroom
+</button>
           </p>
         </div>
       </div>
