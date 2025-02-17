@@ -15,30 +15,30 @@ function Login() {
       console.log('User:', result.user)
       navigate('/dashboard')
     } catch (error) {
-      setError('Failed to sign in with Google: ' + error.message)
+      setError('ไม่สามารถเข้าสู่ระบบด้วย Google ได้: ' + error.message)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center px-4">
-      <div className="bg-white rounded-lg p-8 shadow-xl w-full max-w-md">
-        <h2 className="text-3xl font-bold text-gray-800 mb-6">Login</h2>
+    <div className="min-h-screen bg-gradient-to-br from-blue-200 to-blue-500 flex items-center justify-center p-6">
+      <div className="bg-white rounded-3xl p-12 shadow-xl w-full max-w-md transform transition hover:scale-105">
+        <h2 className="text-4xl font-bold text-blue-900 mb-8 text-center">เข้าสู่ระบบ</h2>
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="bg-red-100 border border-red-400 text-red-800 px-4 py-3 rounded mb-6">
             {error}
           </div>
         )}
-        <div className="space-y-4">
+        <div className="space-y-6">
           <button
             onClick={handleGoogleSignIn}
-            className="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 transition duration-300"
+            className="w-full flex items-center justify-center gap-3 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg transition duration-300 shadow-lg"
           >
             <img 
               src="https://www.google.com/favicon.ico" 
               alt="Google" 
-              className="w-5 h-5"
+              className="w-6 h-6"
             />
-            Sign in with Google
+            เข้าสู่ระบบด้วย Google
           </button>
         </div>
       </div>
