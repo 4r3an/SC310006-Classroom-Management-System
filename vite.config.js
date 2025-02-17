@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/SC310006-Classroom-Management-System/',
+  base: process.env.NODE_ENV === 'development' ? '/' : '/SC310006-Classroom-Management-System/',
   plugins: [
     react(), tailwindcss()
   ],
