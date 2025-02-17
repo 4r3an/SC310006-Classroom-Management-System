@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getFirestore, collection, doc, setDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { app } from '../../firebase_config';
+import { app } from '../firebase_config';
 import { v4 as uuidv4 } from 'uuid';
 
 const CreateClassroom = () => {
@@ -54,6 +54,7 @@ const CreateClassroom = () => {
         </form>
       </div>
     </div>
+    
   );
 };
 
