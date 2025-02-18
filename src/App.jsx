@@ -6,6 +6,7 @@ import DashboardPage from './components/DashboardPage'
 import CreateClassroom from './components/CreateClassroom'
 import EditProfilePage from './components/EditProfilePage'
 import EditClassroom from './components/EditClassroom'
+import EditProfile from './components/EditProfile'
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/edit-profile" element={<EditProfilePage />} />
         <Route path="/edit-classroom/:cid" element={<EditClassroom />} />
         <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/edit-profile" element={<EditProfile />} />
       </Routes>
     </Router>
   )
