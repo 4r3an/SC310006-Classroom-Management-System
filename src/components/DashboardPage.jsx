@@ -72,12 +72,12 @@ function Dashboard() {
       {/* Sidebar */}
       <aside className="w-64 bg-blue-800 text-white p-6 flex flex-col justify-between">
         <div>
-          <div className="text-2xl font-bold mb-8">Classroom Management System</div>
+          <div className="text-4xl --font-InterEN mb-8">Classroom Management System</div>
           <ul>
             <li className="mb-4">
               <button
                 onClick={() => navigate('/create-classroom')}
-                className="hover:text-blue-300 transition"
+                className="hover:text-blue-300 transition font-ChakraPetchTH"
               >
                 สร้างห้องเรียน
               </button>
@@ -114,7 +114,7 @@ function Dashboard() {
       {/* Main Content */}
       <main className="flex-1 bg-blue-50 p-8 animate-fadeIn overflow-y-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-900">แดชบอร์ด</h1>
+          <h1 className="text-3xl font-ChakraPetchTH text-blue-900">แดชบอร์ด</h1>
           <button
             onClick={() => setShowSignOutModal(true)}
             className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
@@ -123,14 +123,14 @@ function Dashboard() {
           </button>
         </div>
         <div className="bg-white rounded-lg p-6 shadow-lg">
-          <h2 className="text-xl font-bold mb-4 text-blue-900">
+          <h2 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
             ยินดีต้อนรับสู่ระบบจัดการห้องเรียน, {profile?.displayName || currentUser?.email || 'User'}🥳
           </h2>
-          <p className="text-blue-700 mb-4">
+          <p className="text-blue-700 font-ChakraPetchTH mb-4">
             ยินดีต้อนรับสู่ระบบจัดการห้องเรียนมหาวิทยาลัยขอนแก่น
           </p>
           <div>
-            <h3 className="text-lg font-bold mb-4 text-blue-900">ห้องเรียนของคุณ</h3>
+            <h3 className="text-lg font-ChakraPetchTH mb-4 text-blue-900">ห้องเรียนของคุณ</h3>
             {classrooms.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {classrooms.map((classroom) => (
@@ -151,9 +151,9 @@ function Dashboard() {
                       </div>
                     )}
                     <div className="text-center">
-                      <p className="font-semibold text-blue-900 text-xl">{classroom.info.name}</p>
-                      <p className="text-blue-700 text-lg">Code: {classroom.info.code}</p>
-                      <p className="text-blue-700 text-lg">Room: {classroom.info.room}</p>
+                      <p className="font-Inter text-blue-900 text-xl">{classroom.info.name}</p>
+                      <p className="text-blue-700 font-Inter text-lg">Code: {classroom.info.code}</p>
+                      <p className="text-blue-700 font-Inter text-lg">Room: {classroom.info.room}</p>
                     </div>
                   </div>
                 ))}

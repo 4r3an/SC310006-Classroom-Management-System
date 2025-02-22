@@ -21,8 +21,8 @@ function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-200 to-blue-500 flex items-center justify-center p-6">
-      <div className="bg-white rounded-3xl p-12 shadow-xl w-full max-w-md transform transition hover:scale-105">
-        <h2 className="text-4xl font-bold text-blue-900 mb-8 text-center">เข้าสู่ระบบ</h2>
+      <div className="bg-white rounded-2xl p-12 shadow-xl w-full max-w-md transform transition hover:scale-105">
+        <h2 className="text-4xl font-ChakraPetchTH text-blue-900 mb-8 text-center">เข้าสู่ระบบ</h2>
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-800 px-4 py-3 rounded mb-6">
             {error}
@@ -31,7 +31,7 @@ function Login() {
         <div className="space-y-6">
           <button
             onClick={handleGoogleSignIn}
-            className="w-full flex items-center justify-center gap-3 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg transition duration-300 shadow-lg"
+            className="w-full flex items-center justify-center gap-3 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg transition duration-300 shadow-lg font-ChakraPetchTH"
           >
             <img 
               src="https://www.google.com/favicon.ico" 
