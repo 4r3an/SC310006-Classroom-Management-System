@@ -55,6 +55,9 @@ function Dashboard() {
   // Add new state for inline attendance check
   const [showAttendanceInline, setShowAttendanceInline] = useState(false)
 
+  // Add new state to hold check-in records near the other inline edit states
+  const [editCheckinRecords, setEditCheckinRecords] = useState([])
+
   // Fetch user profile
   useEffect(() => {
     if (currentUser) {
@@ -130,6 +133,27 @@ function Dashboard() {
     }
     fetchAvailableUsers()
   }, [db])
+
+  // Add a useEffect to fetch check-in records when a classroom is being edited
+  useEffect(() => {
+    if (editingClassroom) {
+      const fetchCheckinRecords = async () => {
+        try {
+          const checkinRef = collection(db, 'classroom', editingClassroom.id, 'checkin')
+          const querySnapshot = await getDocs(checkinRef)
+          const records = []
+          querySnapshot.forEach((docSnap) => {
+            records.push({ id: docSnap.id, ...docSnap.data() })
+          })
+          // Optionally sort records by document id or a specific field
+          setEditCheckinRecords(records)
+        } catch (error) {
+          console.error('Error fetching check-in records:', error)
+        }
+      }
+      fetchCheckinRecords()
+    }
+  }, [editingClassroom, db])
 
   const handleAddStudent = async () => {
     if (!selectedStudent) return
@@ -506,6 +530,42 @@ function Dashboard() {
                             <div className="mt-4 p-4 border border-gray-300 rounded-lg">
                               {/* Inline สำหรับการเช็คชื่อ (ยังไม่มีเนื้อหา) */}
                             </div>
+                          )}
+                        </div>
+
+                        <div className="mt-8">
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">ตารางการเช็คชื่อ</h3>
+                          {editCheckinRecords.length > 0 ? (
+                            <div className="overflow-x-auto">
+                              <table className="w-full border">
+                                <thead>
+                                  <tr className="bg-blue-100">
+                                    <th className="border p-2 text-left">ลำดับที่</th>
+                                    <th className="border p-2 text-left">รหัสเช็คชื่อ</th>
+                                    <th className="border p-2 text-left">วัน/เวลา</th>
+                                    <th className="border p-2 text-left">สถานะ</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {editCheckinRecords.map((record, index) => (
+                                    <tr key={record.id} className="hover:bg-blue-50">
+                                      <td className="border p-2">{index + 1}</td>
+                                      <td className="border p-2">{record.code}</td>
+                                      <td className="border p-2">{record.date}</td>
+                                      <td className="border p-2">
+                                        {record.status === 0
+                                          ? 'ยังไม่เริ่ม'
+                                          : record.status === 1
+                                          ? 'กำลังเช็คชื่อ'
+                                          : 'เสร็จแล้ว'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="text-center text-gray-700">ยังไม่มีข้อมูลการเช็คชื่อ</p>
                           )}
                         </div>
                       </>
