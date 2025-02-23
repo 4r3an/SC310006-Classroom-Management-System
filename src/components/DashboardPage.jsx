@@ -52,6 +52,9 @@ function Dashboard() {
   const [showDetailEdit, setShowDetailEdit] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
+  // Add new state for inline attendance check
+  const [showAttendanceInline, setShowAttendanceInline] = useState(false)
+
   // Fetch user profile
   useEffect(() => {
     if (currentUser) {
@@ -473,13 +476,27 @@ function Dashboard() {
                               ))}
                             </select>
                           </div>
-                          <button
-                            type="button"
-                            onClick={handleAddStudent}
-                            className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-                          >
-                            เพิ่มนักเรียน
-                          </button>
+                          <div className="flex space-x-4">
+                            <button
+                              type="button"
+                              onClick={handleAddStudent}
+                              className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                            >
+                              เพิ่มนักเรียน
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowAttendanceInline(prev => !prev)}
+                              className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                            >
+                              สร้างการเช็คชื่อ
+                            </button>
+                          </div>
+                          {showAttendanceInline && (
+                            <div className="mt-4 p-4 border border-gray-300 rounded-lg">
+                              {/* Inline สำหรับการเช็คชื่อ (ยังไม่มีเนื้อหา) */}
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
