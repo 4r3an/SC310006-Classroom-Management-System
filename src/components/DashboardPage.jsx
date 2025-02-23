@@ -574,6 +574,7 @@ function Dashboard() {
                               ))}
                             </select>
                           </div>
+                          {/* Button row */}
                           <div className="flex space-x-4">
                             <button
                               type="button"
@@ -587,16 +588,46 @@ function Dashboard() {
                               onClick={() => setShowAttendanceInline(prev => !prev)}
                               className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
                             >
-                              สร้างการเช็คชื่อ
+                              {currentCheckinRecord ? "แสดงตารางเช็คชื่อ" : "สร้างการเช็คชื่อ"}
                             </button>
                           </div>
+
+                          {/* If inline check-in view is toggled and no current record has been created, show creation form */}
+                          {showAttendanceInline && !currentCheckinRecord && (
+                            <div className="mt-4 p-4 border border-gray-300 rounded-lg">
+                              <div className="space-y-4">
+                                <input
+                                  type="text"
+                                  placeholder="รหัสเช็คชื่อ"
+                                  value={newCheckinCode}
+                                  onChange={(e) => setNewCheckinCode(e.target.value)}
+                                  className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                                />
+                                <input
+                                  type="datetime-local"
+                                  value={newCheckinDate}
+                                  onChange={(e) => setNewCheckinDate(e.target.value)}
+                                  className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleCreateCheckin}
+                                  className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                                >
+                                  สร้างการเช็คชื่อ
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* If inline check-in view is toggled and a record exists, show the check-in table */}
                           {showAttendanceInline && currentCheckinRecord && (
                             <div className="mt-4 p-4 border border-gray-300 rounded-lg">
                               <div className="space-y-4">
                                 <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
                                   ตารางการเช็คชื่อ (รหัส: {currentCheckinRecord.code}, เวลา: {currentCheckinRecord.date})
                                 </h3>
-                                { editStudents.length > 0 ? (
+                                {editStudents.length > 0 ? (
                                   <div className="overflow-x-auto">
                                     <table className="w-full border">
                                       <thead>
@@ -615,7 +646,7 @@ function Dashboard() {
                                             <td className="border p-2">{student.stdid}</td>
                                             <td className="border p-2">{student.name}</td>
                                             <td className="border p-2">
-                                              { student.checked ? 'เช็คชื่อแล้ว' : 'ยังไม่เช็ค' }
+                                              {student.checked ? 'เช็คชื่อแล้ว' : 'ยังไม่เช็ค'}
                                             </td>
                                             <td className="border p-2">
                                               <button
