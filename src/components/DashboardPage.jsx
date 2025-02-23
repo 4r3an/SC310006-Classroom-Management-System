@@ -161,35 +161,46 @@ function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-  {classrooms.map((classroom) => (
-    <div 
-      key={classroom.id}  
-      className="relative border p-6 rounded-lg shadow-lg bg-white hover:scale-105 transition"
-    >
-      {classroom.info.photo ? (
-        <img src={classroom.info.photo} alt={classroom.info.name} className="w-full h-40 object-cover rounded-lg mb-4" />
-      ) : (
-        <div className="w-full h-40 bg-gray-300 flex items-center justify-center rounded-lg mb-4">
-          <span className="text-gray-600">No Image</span>
-        </div>
-      )}
-      
-      <p className="font-semibold text-lg text-blue-900">{classroom.info.name}</p>
-      <p className="text-gray-700">Code: {classroom.info.code}</p>
-      <p className="text-gray-700">Room: {classroom.info.room}</p>
-      
-      {/* ปุ่มแก้ไข */}
-      <button 
-        onClick={() => navigate(`/edit-classroom/${classroom.id}`)}
-        className="absolute top-4 right-4 flex items-center gap-2 bg-blue-500 text-white px-3 py-2 rounded-full shadow-md hover:bg-blue-600 transition"
-      >
-        <FaEdit className="text-lg" />
-        <span className="text-sm font-medium">แก้ไข</span>
-      </button>
+          {classrooms.map((classroom) => (
+            <div 
+              key={classroom.id}  
+              className="border p-6 rounded-lg shadow-lg bg-white hover:scale-105 transition"
+            >
+              {classroom.info.photo ? (
+                <img src={classroom.info.photo} alt={classroom.info.name} className="w-full h-40 object-cover rounded-lg mb-4" />
+              ) : (
+                <div className="w-full h-40 bg-gray-300 flex items-center justify-center rounded-lg mb-4">
+                  <span className="text-gray-600">No Image</span>
+                </div>
+              )}
 
-    </div>
-  ))}
-</div>
+              <p className="font-semibold text-lg text-blue-900">{classroom.info.name}</p>
+              <p className="text-gray-700">Code: {classroom.info.code}</p>
+              <p className="text-gray-700">Room: {classroom.info.room}</p>
+
+              {/* ปุ่มแก้ไข */}
+              <button 
+                onClick={() => navigate(`/edit-classroom/${classroom.id}`)}
+                className="w-full mt-4 flex items-center justify-center gap-2 bg-blue-500 text-white px-3 py-2 rounded-full shadow-md hover:bg-blue-600 transition"
+              >
+                <FaEdit className="text-lg" />
+                <span className="text-sm font-medium">แก้ไข</span>
+              </button>
+
+              {/* ปุ่มจัดการห้องเรียน */}
+              <button 
+                onClick={() => navigate(`/manageroom/${classroom.id}`)}
+                className="w-full mt-4 flex items-center justify-center gap-2 bg-blue-500 text-white px-3 py-2 rounded-full shadow-md hover:bg-blue-600 transition"
+              >
+                <FaEdit className="text-lg" />
+                <span className="text-sm font-medium">จัดการห้องเรียน</span>
+              </button>
+              
+            </div>
+          ))}
+        </div>
+
+
 
       </main>
       
