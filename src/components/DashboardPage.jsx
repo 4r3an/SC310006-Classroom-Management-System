@@ -133,6 +133,13 @@ function Dashboard() {
 
   const handleAddStudent = async () => {
     if (!selectedStudent) return
+
+    // Check if the student is already added
+    if (editStudents.some(student => student.id === selectedStudent)) {
+      alert('นักเรียนนี้ถูกเพิ่มแล้ว.')
+      return
+    }
+
     try {
       const userToAdd = availableUsers.find((user) => user.id === selectedStudent)
       if (!userToAdd) return
@@ -142,7 +149,10 @@ function Dashboard() {
         name: userToAdd.name,
         status: 1,
       })
-      setEditStudents([...editStudents, { id: userToAdd.id, stdid: userToAdd.id, name: userToAdd.name, status: 1 }])
+      setEditStudents([
+        ...editStudents,
+        { id: userToAdd.id, stdid: userToAdd.id, name: userToAdd.name, status: 1 }
+      ])
       alert('เพิ่มนักเรียนสำเร็จแล้ว.')
       setSelectedStudent('')
     } catch (err) {
