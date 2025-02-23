@@ -337,7 +337,15 @@ function Dashboard() {
         status: 2
       })
       alert('การเช็คชื่อเสร็จสิ้นแล้ว')
-      // Optionally, clear the current check-in record (or you can leave it to display history)
+      // After update, re-fetch all check-in records so the finished record is shown in the inline table
+      const checkinRef = collection(db, 'classroom', editingClassroom.id, 'checkin')
+      const querySnapshot = await getDocs(checkinRef)
+      const records = []
+      querySnapshot.forEach((docSnap) => {
+        records.push({ id: docSnap.id, ...docSnap.data() })
+      })
+      setEditCheckinRecords(records)
+      // Optionally, clear the current check-in state so the creation form re-appears
       setCurrentCheckinRecord(null)
     } catch (error) {
       console.error('Error finishing check-in:', error)
@@ -582,92 +590,59 @@ function Dashboard() {
                               สร้างการเช็คชื่อ
                             </button>
                           </div>
-                          {showAttendanceInline && (
+                          {showAttendanceInline && currentCheckinRecord && (
                             <div className="mt-4 p-4 border border-gray-300 rounded-lg">
-                              { !currentCheckinRecord ? (
-                                // Form to create a new check-in record
-                                <div className="space-y-4">
-                                  <div>
-                                    <label className="block mb-1 font-bold">รหัสเช็คชื่อ</label>
-                                    <input
-                                      type="text"
-                                      value={newCheckinCode}
-                                      onChange={(e) => setNewCheckinCode(e.target.value)}
-                                      placeholder="เช่น ABC123"
-                                      className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block mb-1 font-bold">วัน/เวลา</label>
-                                    <input
-                                      type="datetime-local"
-                                      value={newCheckinDate}
-                                      onChange={(e) => setNewCheckinDate(e.target.value)}
-                                      className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={handleCreateCheckin}
-                                    className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-                                  >
-                                    สร้างการเช็คชื่อ
-                                  </button>
-                                </div>
-                              ) : (
-                                // If a check-in record exists, show the student table with check-in buttons
-                                <div className="space-y-4">
-                                  <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
-                                    ตารางการเช็คชื่อ (รหัส: {currentCheckinRecord.code}, เวลา: {currentCheckinRecord.date})
-                                  </h3>
-                                  { editStudents.length > 0 ? (
-                                    <div className="overflow-x-auto">
-                                      <table className="w-full border">
-                                        <thead>
-                                          <tr className="bg-blue-100">
-                                            <th className="border p-2 text-left">ลำดับที่</th>
-                                            <th className="border p-2 text-left">รหัสนักเรียน</th>
-                                            <th className="border p-2 text-left">ชื่อ</th>
-                                            <th className="border p-2 text-left">สถานะ</th>
-                                            <th className="border p-2 text-left">Action</th>
+                              <div className="space-y-4">
+                                <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
+                                  ตารางการเช็คชื่อ (รหัส: {currentCheckinRecord.code}, เวลา: {currentCheckinRecord.date})
+                                </h3>
+                                { editStudents.length > 0 ? (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full border">
+                                      <thead>
+                                        <tr className="bg-blue-100">
+                                          <th className="border p-2 text-left">ลำดับที่</th>
+                                          <th className="border p-2 text-left">รหัสนักเรียน</th>
+                                          <th className="border p-2 text-left">ชื่อ</th>
+                                          <th className="border p-2 text-left">สถานะ</th>
+                                          <th className="border p-2 text-left">Action</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {editStudents.map((student, index) => (
+                                          <tr key={student.id} className="hover:bg-blue-50">
+                                            <td className="border p-2">{index + 1}</td>
+                                            <td className="border p-2">{student.stdid}</td>
+                                            <td className="border p-2">{student.name}</td>
+                                            <td className="border p-2">
+                                              { student.checked ? 'เช็คชื่อแล้ว' : 'ยังไม่เช็ค' }
+                                            </td>
+                                            <td className="border p-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleStudentCheckin(student.id)}
+                                                disabled={student.checked}
+                                                className={`px-3 py-1 rounded ${student.checked ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} text-white transition`}
+                                              >
+                                                เช็คชื่อ
+                                              </button>
+                                            </td>
                                           </tr>
-                                        </thead>
-                                        <tbody>
-                                          {editStudents.map((student, index) => (
-                                            <tr key={student.id} className="hover:bg-blue-50">
-                                              <td className="border p-2">{index + 1}</td>
-                                              <td className="border p-2">{student.stdid}</td>
-                                              <td className="border p-2">{student.name}</td>
-                                              <td className="border p-2">
-                                                { student.checked ? 'เช็คชื่อแล้ว' : 'ยังไม่เช็ค' }
-                                              </td>
-                                              <td className="border p-2">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => handleStudentCheckin(student.id)}
-                                                  disabled={student.checked}
-                                                  className={`px-3 py-1 rounded ${student.checked ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} text-white transition`}
-                                                >
-                                                  เช็คชื่อ
-                                                </button>
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  ) : (
-                                    <p className="text-center text-gray-700">ยังไม่มีนักเรียนในคลาส</p>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={handleFinishCheckin}
-                                    className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition mt-4"
-                                  >
-                                    เสร็จสิ้นการเช็คชื่อ
-                                  </button>
-                                </div>
-                              )}
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <p className="text-center text-gray-700">ยังไม่มีนักเรียนในคลาส</p>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={handleFinishCheckin}
+                                  className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition mt-4"
+                                >
+                                  เสร็จสิ้นการเช็คชื่อ
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -696,7 +671,7 @@ function Dashboard() {
                                           ? 'ยังไม่เริ่ม'
                                           : record.status === 1
                                           ? 'กำลังเช็คชื่อ'
-                                          : 'เสร็จแล้ว'}
+                                          : 'เสร็จสิ้น'}
                                       </td>
                                     </tr>
                                   ))}
