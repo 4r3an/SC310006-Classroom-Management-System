@@ -12,7 +12,8 @@ import {
   where,
   deleteDoc,
   setDoc,
-  updateDoc  // <-- added updateDoc for edit functionality
+  updateDoc,  // <-- added updateDoc for edit functionality
+  addDoc  // <-- add this if not already imported
 } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -57,6 +58,11 @@ function Dashboard() {
 
   // Add new state to hold check-in records near the other inline edit states
   const [editCheckinRecords, setEditCheckinRecords] = useState([])
+
+  // Add new states for inline attendance check creation and management
+  const [newCheckinCode, setNewCheckinCode] = useState('')
+  const [newCheckinDate, setNewCheckinDate] = useState('')
+  const [currentCheckinRecord, setCurrentCheckinRecord] = useState(null)
 
   // Fetch user profile
   useEffect(() => {
@@ -287,6 +293,56 @@ function Dashboard() {
       setEditMessage('แก้ไขห้องเรียนไม่สำเร็จ.')
     }
     setLoading(false)
+  }
+
+  const handleCreateCheckin = async () => {
+    if (!newCheckinCode || !newCheckinDate) {
+      alert('กรุณากรอก รหัสเช็คชื่อและเลือกวัน/เวลา')
+      return
+    }
+    try {
+      // Create a new check-in record in the classroom's 'checkin' subcollection
+      const checkinRef = await addDoc(collection(db, 'classroom', editingClassroom.id, 'checkin'), {
+        code: newCheckinCode,
+        date: newCheckinDate,
+        status: 0
+      })
+      // Set local state for the newly created check-in record
+      setCurrentCheckinRecord({ id: checkinRef.id, code: newCheckinCode, date: newCheckinDate, status: 0 })
+      // Optionally clear the input fields
+      setNewCheckinCode('')
+      setNewCheckinDate('')
+    } catch (error) {
+      console.error('Error creating check-in record:', error)
+      alert('สร้างการเช็คชื่อไม่สำเร็จ')
+    }
+  }
+
+  const handleStudentCheckin = (studentId) => {
+    // Update the student data to mark them as checked (locally)
+    setEditStudents(editStudents.map(student => {
+      if(student.id === studentId) {
+        return { ...student, checked: true }
+      }
+      return student
+    }))
+  }
+
+  const handleFinishCheckin = async () => {
+    if (!currentCheckinRecord) return
+    try {
+      // Update the check-in record status to finished (2)
+      const checkinDocRef = doc(db, 'classroom', editingClassroom.id, 'checkin', currentCheckinRecord.id)
+      await updateDoc(checkinDocRef, {
+        status: 2
+      })
+      alert('การเช็คชื่อเสร็จสิ้นแล้ว')
+      // Optionally, clear the current check-in record (or you can leave it to display history)
+      setCurrentCheckinRecord(null)
+    } catch (error) {
+      console.error('Error finishing check-in:', error)
+      alert('เกิดข้อผิดพลาดในการสรุปการเช็คชื่อ')
+    }
   }
 
   return (
@@ -528,7 +584,90 @@ function Dashboard() {
                           </div>
                           {showAttendanceInline && (
                             <div className="mt-4 p-4 border border-gray-300 rounded-lg">
-                              {/* Inline สำหรับการเช็คชื่อ (ยังไม่มีเนื้อหา) */}
+                              { !currentCheckinRecord ? (
+                                // Form to create a new check-in record
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="block mb-1 font-bold">รหัสเช็คชื่อ</label>
+                                    <input
+                                      type="text"
+                                      value={newCheckinCode}
+                                      onChange={(e) => setNewCheckinCode(e.target.value)}
+                                      placeholder="เช่น ABC123"
+                                      className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block mb-1 font-bold">วัน/เวลา</label>
+                                    <input
+                                      type="datetime-local"
+                                      value={newCheckinDate}
+                                      onChange={(e) => setNewCheckinDate(e.target.value)}
+                                      className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={handleCreateCheckin}
+                                    className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                                  >
+                                    สร้างการเช็คชื่อ
+                                  </button>
+                                </div>
+                              ) : (
+                                // If a check-in record exists, show the student table with check-in buttons
+                                <div className="space-y-4">
+                                  <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
+                                    ตารางการเช็คชื่อ (รหัส: {currentCheckinRecord.code}, เวลา: {currentCheckinRecord.date})
+                                  </h3>
+                                  { editStudents.length > 0 ? (
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full border">
+                                        <thead>
+                                          <tr className="bg-blue-100">
+                                            <th className="border p-2 text-left">ลำดับที่</th>
+                                            <th className="border p-2 text-left">รหัสนักเรียน</th>
+                                            <th className="border p-2 text-left">ชื่อ</th>
+                                            <th className="border p-2 text-left">สถานะ</th>
+                                            <th className="border p-2 text-left">Action</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {editStudents.map((student, index) => (
+                                            <tr key={student.id} className="hover:bg-blue-50">
+                                              <td className="border p-2">{index + 1}</td>
+                                              <td className="border p-2">{student.stdid}</td>
+                                              <td className="border p-2">{student.name}</td>
+                                              <td className="border p-2">
+                                                { student.checked ? 'เช็คชื่อแล้ว' : 'ยังไม่เช็ค' }
+                                              </td>
+                                              <td className="border p-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleStudentCheckin(student.id)}
+                                                  disabled={student.checked}
+                                                  className={`px-3 py-1 rounded ${student.checked ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} text-white transition`}
+                                                >
+                                                  เช็คชื่อ
+                                                </button>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <p className="text-center text-gray-700">ยังไม่มีนักเรียนในคลาส</p>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={handleFinishCheckin}
+                                    className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition mt-4"
+                                  >
+                                    เสร็จสิ้นการเช็คชื่อ
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
