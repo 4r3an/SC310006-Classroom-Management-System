@@ -9,7 +9,7 @@ import {
   getDocs,
 } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
-import { app } from '../../firebase_config'
+import { app } from '../firebase_config'
 
 function EditClassroom() {
   const { cid } = useParams()
@@ -116,7 +116,7 @@ function EditClassroom() {
         <h1 className="text-3xl font-bold text-blue-900">แก้ไขห้องเรียน</h1>
         <button
           onClick={() => navigate('/dashboard')}
-          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
         >
           กลับไปที่แดชบอร์ด
         </button>
@@ -124,7 +124,7 @@ function EditClassroom() {
       <div className="bg-white p-6 rounded-lg shadow-lg mb-8">
         <form onSubmit={handleUpdate}>
           <div className="mb-4">
-            <label className="block text-gray-700 mb-1">รหัสห้องเรียน</label>
+            <label className="block text-gray-700 mb-1">รหัสวิชา</label>
             <input
               type="text"
               value={code}
@@ -134,7 +134,7 @@ function EditClassroom() {
             />
           </div>
           <div className="mb-4">
-            <label className="block text-gray-700 mb-1">ชื่อห้องเรียน</label>
+            <label className="block text-gray-700 mb-1">ชื่อวิชา</label>
             <input
               type="text"
               value={name}

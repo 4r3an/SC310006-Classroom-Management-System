@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAuth, updateProfile } from 'firebase/auth'
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore'
-import { app } from '../../firebase_config'
+import { app } from '../firebase_config'
 
 function EditProfilePage() {
   const auth = getAuth()
