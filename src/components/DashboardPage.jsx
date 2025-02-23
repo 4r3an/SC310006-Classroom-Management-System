@@ -64,6 +64,9 @@ function Dashboard() {
   const [newCheckinDate, setNewCheckinDate] = useState('')
   const [currentCheckinRecord, setCurrentCheckinRecord] = useState(null)
 
+  const [showCheckinDetailsModal, setShowCheckinDetailsModal] = useState(false)
+  const [selectedCheckinForDetails, setSelectedCheckinForDetails] = useState(null)
+
   // Fetch user profile
   useEffect(() => {
     if (currentUser) {
@@ -110,7 +113,8 @@ function Dashboard() {
           const querySnapshot = await getDocs(studentsRef)
           const studentsList = []
           querySnapshot.forEach((docSnap) => {
-            studentsList.push({ id: docSnap.id, ...docSnap.data() })
+            // กำหนดค่า checked เริ่มต้นเป็น false ถ้ายังไม่มีข้อมูลนี้
+            studentsList.push({ id: docSnap.id, checked: false, ...docSnap.data() })
           })
           setEditStudents(studentsList)
         } catch (error) {
@@ -350,6 +354,24 @@ function Dashboard() {
     } catch (error) {
       console.error('Error finishing check-in:', error)
       alert('เกิดข้อผิดพลาดในการสรุปการเช็คชื่อ')
+    }
+  }
+
+  const handleViewCheckinDetails = async (record) => {
+    try {
+      // ดึงข้อมูลนักเรียนใน checkin record นั้น ๆ
+      const studentsRef = collection(db, 'classroom', editingClassroom.id, 'checkin', record.id, 'students')
+      const querySnapshot = await getDocs(studentsRef)
+      const studentList = []
+      querySnapshot.forEach((docSnap) => {
+        studentList.push({ id: docSnap.id, ...docSnap.data() })
+      })
+      // รวมข้อมูลนักเรียนเข้าไปใน record
+      setSelectedCheckinForDetails({ ...record, students: studentList })
+      setShowCheckinDetailsModal(true)
+    } catch (error) {
+      console.error('Error fetching check-in students:', error)
+      alert('เกิดข้อผิดพลาดในการดึงข้อมูลนักเรียนในเช็คชื่อ')
     }
   }
 
@@ -689,6 +711,7 @@ function Dashboard() {
                                     <th className="border p-2 text-left">รหัสเช็คชื่อ</th>
                                     <th className="border p-2 text-left">วัน/เวลา</th>
                                     <th className="border p-2 text-left">สถานะ</th>
+                                    <th className="border p-2 text-left">รายละเอียด</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -703,6 +726,15 @@ function Dashboard() {
                                           : record.status === 1
                                           ? 'กำลังเช็คชื่อ'
                                           : 'เสร็จสิ้น'}
+                                      </td>
+                                      <td className="border p-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleViewCheckinDetails(record)}
+                                          className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition"
+                                        >
+                                          ดูรายละเอียด
+                                        </button>
                                       </td>
                                     </tr>
                                   ))}
@@ -851,6 +883,51 @@ function Dashboard() {
         {/* ไม่ใช้ modal แสดง inline จนกว่าจะออกจาก manageMode */}
       </main>
       
+      {/* Modal สำหรับดูรายละเอียดการเช็คชื่อ */}
+      {showCheckinDetailsModal && selectedCheckinForDetails && (
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-600 bg-opacity-50 z-50">
+          <div className="bg-white rounded-lg p-6 w-11/12 md:w-1/2">
+            <h3 className="text-xl font-bold mb-4">รายละเอียดการเช็คชื่อ</h3>
+            <p>รหัสเช็คชื่อ: {selectedCheckinForDetails.code}</p>
+            <p>เวลา: {selectedCheckinForDetails.date}</p>
+            <p>
+              นักเรียนที่มาเช็คชื่อ: {editStudents.filter(s => s.checked).length} จาก {editStudents.length}
+            </p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full border">
+                <thead>
+                  <tr className="bg-blue-100">
+                    <th className="border p-2 text-left">ลำดับที่</th>
+                    <th className="border p-2 text-left">รหัสนักเรียน</th>
+                    <th className="border p-2 text-left">ชื่อ</th>
+                    <th className="border p-2 text-left">สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editStudents.map((student, index) => (
+                    <tr key={student.id} className="hover:bg-blue-50">
+                      <td className="border p-2">{index + 1}</td>
+                      <td className="border p-2">{student.stdid}</td>
+                      <td className="border p-2">{student.name}</td>
+                      <td className="border p-2">{student.checked ? 'เช็คชื่อแล้ว' : 'ยังไม่เช็ค'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                type="button"
+                onClick={() => setShowCheckinDetailsModal(false)}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+              >
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sign Out Confirmation Modal (ยังคงใช้ modalสำหรับออกจากระบบ) */}
       {showSignOutModal && (
         <div className="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
