@@ -20,21 +20,19 @@ function StudentDashboard() {
   const currentUser = auth.currentUser
   const navigate = useNavigate()
 
-  // รายการห้องเรียน
+  // รายการห้องเรียนที่เป็นนักเรียน
   const [myClassrooms, setMyClassrooms] = useState([])
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // สำหรับ “inline” แสดง quiz ในห้องเรียนที่เลือก
+  // การแสดงผลแบบ inline
   const [selectedClassroom, setSelectedClassroom] = useState(null)
   const [questions, setQuestions] = useState([])
 
-  // state เพื่อเก็บคำตอบชั่วคราว (input) ของแต่ละ question
-  // questionId -> answer
+  // เก็บคำตอบของแต่ละ question (key = questionDocId)
   const [answersInput, setAnswersInput] = useState({})
 
   useEffect(() => {
-    // เช็คล็อกอิน
     if (!currentUser) {
       navigate('/')
       return
@@ -53,7 +51,7 @@ function StudentDashboard() {
       }
     }
 
-    // โหลดรายการห้องเรียนที่เป็น student
+    // โหลดรายชื่อห้องเรียน (สืบจาก sub-collection students)
     const loadClassrooms = async () => {
       try {
         setLoading(true)
@@ -86,6 +84,7 @@ function StudentDashboard() {
     loadClassrooms()
   }, [currentUser, db, navigate])
 
+  // ออกจากระบบ
   const handleSignOut = async () => {
     try {
       await auth.signOut()
@@ -95,75 +94,66 @@ function StudentDashboard() {
     }
   }
 
-  // เมื่อนักเรียนคลิกเข้าดูห้องเรียน => โหลด quiz
+  // เข้าไปดู quiz ของห้องเรียน
   const handleEnterClassroom = async (classroom) => {
     setLoading(true)
     try {
       setSelectedClassroom(classroom)
-      setAnswersInput({}) // เคลียร์ input เดิม
+      setAnswersInput({})
 
-      // โหลด checkin
+      // โหลด checkin => question_show=true
       const checkinSnapshot = await getDocs(
         collection(db, 'classroom', classroom.id, 'checkin')
       )
       let tempQuestions = []
       for (const cDoc of checkinSnapshot.docs) {
-        const cData = cDoc.data()
-        // ถ้าอยากกรองเฉพาะ checkin.status == 1 => if(cData.status !== 1) continue
-
         const qCol = collection(db, 'classroom', classroom.id, 'checkin', cDoc.id, 'question')
         const qSnap = await getDocs(qCol)
         qSnap.forEach((qDoc) => {
           const qData = qDoc.data()
-          // แสดงเฉพาะ question_show=true
+          // เฉพาะ question_show = true
           if (qData.question_show) {
             tempQuestions.push({
               checkinId: cDoc.id,
-              questionDocId: qDoc.id, // id ของ question document
+              questionDocId: qDoc.id,
               ...qData
             })
           }
         })
       }
-      // เรียงตาม question_no
       tempQuestions.sort((a, b) => (a.question_no || 0) - (b.question_no || 0))
-
       setQuestions(tempQuestions)
     } catch (error) {
-      console.error('Error loading quiz inline:', error)
+      console.error('Error loading quiz:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  // ฟังก์ชันกลับไปที่ list ห้องเรียน
   const handleBackToList = () => {
     setSelectedClassroom(null)
     setQuestions([])
     setAnswersInput({})
   }
 
-  // เมื่อพิมพ์คำตอบใน input
+  // เปลี่ยนคำตอบ
   const handleAnswerChange = (questionId, value) => {
-    setAnswersInput((prev) => ({
+    setAnswersInput(prev => ({
       ...prev,
-      [questionId]: value,
+      [questionId]: value
     }))
   }
 
-  // เมื่อกด Submit Answer => บันทึกลง Firestore (answers)
+  // ส่งคำตอบ
   const handleSubmitAnswer = async (q) => {
-    try {
-      // ดึงคำตอบของ question นี้จาก state
-      const studentAnswer = answersInput[q.questionDocId] || ''
-      if (!studentAnswer.trim()) {
-        alert('Please enter an answer')
-        return
-      }
+    const studentAnswer = answersInput[q.questionDocId] || ''
+    if (!studentAnswer.trim()) {
+      alert('Please enter an answer or select a choice')
+      return
+    }
 
-      // เช่น /classroom/{cid}/checkin/{q.checkinId}/answers/{q.question_no}/students/{currentUser.uid}
-      // เราจะใช้ question_no เป็น document key (qno) ของ answers
-      // หรือจะใช้ String(q.question_no) ก็ได้
+    try {
+      // path: classroom/{cid}/checkin/{q.checkinId}/answers/{q.question_no}/students/{uid}
       const answersDocRef = doc(
         db,
         'classroom',
@@ -171,24 +161,11 @@ function StudentDashboard() {
         'checkin',
         q.checkinId,
         'answers',
-        String(q.question_no) // {qno}
+        String(q.question_no)
       )
-      // ส่วนใน answersDocRef เราจะเก็บ {text: q.question_text} หรืออัพเดตทับก็ได้
-      // จากนั้นค่อยสร้าง sub-collection students
-      // แต่ในตัวอย่างโครงสร้าง: 
-      //     answers
-      //       -> qno (document)
-      //         -> { text: question_text }
-      //         -> students (collection)
-      //            -> stdid: { time, answer, ... }
-      //
-      // เรา setDoc ที่ answersDocRef ก่อน (เพื่อให้ {text} อยู่ระดับเดียวกับ students sub-collection)
-      await setDoc(answersDocRef, {
-        text: q.question_text, // เก็บคำถามไว้ใน doc
-      }, { merge: true })
+      // merge text
+      await setDoc(answersDocRef, { text: q.question_text }, { merge: true })
 
-      // แล้วเก็บคำตอบใน sub-collection students
-      // doc key = currentUser.uid (หรือ stdid)
       const studentAnswerRef = doc(answersDocRef, 'students', currentUser.uid)
       const nowStr = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })
 
@@ -269,7 +246,6 @@ function StudentDashboard() {
 
         {loading && <p>Loading...</p>}
 
-        {/* List of classrooms */}
         {!loading && !selectedClassroom && (
           <>
             {myClassrooms.length === 0 ? (
@@ -306,39 +282,60 @@ function StudentDashboard() {
           </>
         )}
 
-        {/* Inline quiz detail */}
+        {/* แสดง quiz (inline) */}
         {!loading && selectedClassroom && (
           <div className="bg-white p-4 rounded shadow">
             <h2 className="text-2xl font-bold mb-4">
-              Quiz (question_show=true)
+              ควิซ
             </h2>
             {questions.length === 0 ? (
               <p>No quiz found.</p>
             ) : (
               <div className="space-y-6">
                 {questions.map((q) => {
+                  const ansValue = answersInput[q.questionDocId] || ''
                   return (
-                    <div key={`${q.checkinId}-${q.questionDocId}`} className="border p-4 rounded">
+                    <div key={q.questionDocId} className="border p-4 rounded">
                       <p className="font-semibold mb-2">
-                        #{q.question_no}: {q.question_text}
+                        #{q.question_no} ({q.question_type || 'subjective'}): {q.question_text}
                       </p>
-                      <div className="flex space-x-2">
+                      {q.question_type === 'objective' && Array.isArray(q.choices) && q.choices.length > 0 ? (
+                        // ปรนัย -> แสดงตัวเลือก
+                        <div className="flex flex-col space-y-2 mb-2">
+                          {q.choices.map((choice, idx) => (
+                            <label key={idx} className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                name={`q_${q.questionDocId}`}
+                                value={choice}
+                                checked={ansValue === choice}
+                                onChange={(e) =>
+                                  handleAnswerChange(q.questionDocId, e.target.value)
+                                }
+                              />
+                              <span>{choice}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        // อัตนัย -> ช่องกรอกข้อความ
                         <input
                           type="text"
                           placeholder="Type your answer"
-                          className="flex-1 p-2 border rounded"
-                          value={answersInput[q.questionDocId] || ''}
+                          className="w-full p-2 border rounded mb-2"
+                          value={ansValue}
                           onChange={(e) =>
                             handleAnswerChange(q.questionDocId, e.target.value)
                           }
                         />
-                        <button
-                          onClick={() => handleSubmitAnswer(q)}
-                          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-                        >
-                          Submit Answer
-                        </button>
-                      </div>
+                      )}
+
+                      <button
+                        onClick={() => handleSubmitAnswer(q)}
+                        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                      >
+                        Submit Answer
+                      </button>
                     </div>
                   )
                 })}
