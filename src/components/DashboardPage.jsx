@@ -12,31 +12,45 @@ import {
   where,
   deleteDoc,
   setDoc,
-  updateDoc,  // <-- added updateDoc for edit functionality
-  addDoc  // <-- add this if not already imported
+  updateDoc,
+  addDoc
 } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
 
+/**
+ * Dashboard component provides the main classroom management UI.
+ * Users can view, create, edit, and manage classrooms, as well as perform attendance check-ins.
+ */
 function Dashboard() {
   const navigate = useNavigate()
   const auth = getAuth()
   const db = getFirestore(app)
   const currentUser = auth.currentUser
+
+  // State: user profile data
   const [profile, setProfile] = useState(null)
+
+  // State: collection of classrooms owned by current user
   const [classrooms, setClassrooms] = useState([])
+
+  // State: sign-out confirmation modal
   const [showSignOutModal, setShowSignOutModal] = useState(false)
+
+  // State: dropdown UI for each classroom card
   const [openDropdownId, setOpenDropdownId] = useState(null)
 
-  // Inline classroom creation state
+  // State: classroom creation form
   const [showCreate, setShowCreate] = useState(false)
   const [classroomCode, setClassroomCode] = useState('')
   const [classroomName, setClassroomName] = useState('')
   const [room, setRoom] = useState('')
   const [photoURL, setPhotoURL] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // State: manage mode toggles the view between "My Classrooms" and "Create/Edit Classroom"
   const [manageMode, setManageMode] = useState(false)
 
-  // New state for inline editing a classroom
+  // State: for editing an existing classroom
   const [editingClassroom, setEditingClassroom] = useState(null)
   const [editCode, setEditCode] = useState('')
   const [editName, setEditName] = useState('')
@@ -44,30 +58,29 @@ function Dashboard() {
   const [editRoom, setEditRoom] = useState('')
   const [editMessage, setEditMessage] = useState('')
 
-  // *** New state added for inline EditClassroom functionality ***
+  // State: for inline student management
   const [editStudents, setEditStudents] = useState([])
   const [availableUsers, setAvailableUsers] = useState([])
   const [selectedStudent, setSelectedStudent] = useState('')
 
-  // New state to toggle between student management vs. full detail edit
+  // State: toggles between detail-edit of the classroom and student management
   const [showDetailEdit, setShowDetailEdit] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
-  // Add new state for inline attendance check
+  // State: attendance check
   const [showAttendanceInline, setShowAttendanceInline] = useState(false)
-
-  // Add new state to hold check-in records near the other inline edit states
   const [editCheckinRecords, setEditCheckinRecords] = useState([])
-
-  // Add new states for inline attendance check creation and management
   const [newCheckinCode, setNewCheckinCode] = useState('')
   const [newCheckinDate, setNewCheckinDate] = useState('')
   const [currentCheckinRecord, setCurrentCheckinRecord] = useState(null)
 
+  // State: check-in details modal
   const [showCheckinDetailsModal, setShowCheckinDetailsModal] = useState(false)
   const [selectedCheckinForDetails, setSelectedCheckinForDetails] = useState(null)
 
-  // Fetch user profile
+  /**
+   * useEffect: Fetch user profile if currentUser exists.
+   */
   useEffect(() => {
     if (currentUser) {
       const docRef = doc(db, 'users', currentUser.uid)
@@ -83,7 +96,9 @@ function Dashboard() {
     }
   }, [currentUser, db])
 
-  // Fetch classrooms owned by the current user
+  /**
+   * useEffect: Fetch all classrooms owned by the currentUser.
+   */
   useEffect(() => {
     if (currentUser) {
       const classroomsQuery = query(
@@ -104,7 +119,9 @@ function Dashboard() {
     }
   }, [currentUser, db])
 
-  // Fetch students for the classroom that is being edited
+  /**
+   * useEffect: Fetch students for the currently selected (editing) classroom.
+   */
   useEffect(() => {
     if (editingClassroom) {
       const fetchStudents = async () => {
@@ -113,7 +130,7 @@ function Dashboard() {
           const querySnapshot = await getDocs(studentsRef)
           const studentsList = []
           querySnapshot.forEach((docSnap) => {
-            // กำหนดค่า checked เริ่มต้นเป็น false ถ้ายังไม่มีข้อมูลนี้
+            // Initialize 'checked' as false if not found
             studentsList.push({ id: docSnap.id, checked: false, ...docSnap.data() })
           })
           setEditStudents(studentsList)
@@ -125,7 +142,10 @@ function Dashboard() {
     }
   }, [editingClassroom, db])
 
-  // Fetch available users for adding as students
+  /**
+   * useEffect: Fetch available users who can be added as students.
+   * Adjusting the query to match your user logic.
+   */
   useEffect(() => {
     const fetchAvailableUsers = async () => {
       try {
@@ -144,7 +164,9 @@ function Dashboard() {
     fetchAvailableUsers()
   }, [db])
 
-  // Add a useEffect to fetch check-in records when a classroom is being edited
+  /**
+   * useEffect: Fetch check-in records for the editing classroom.
+   */
   useEffect(() => {
     if (editingClassroom) {
       const fetchCheckinRecords = async () => {
@@ -155,7 +177,6 @@ function Dashboard() {
           querySnapshot.forEach((docSnap) => {
             records.push({ id: docSnap.id, ...docSnap.data() })
           })
-          // Optionally sort records by document id or a specific field
           setEditCheckinRecords(records)
         } catch (error) {
           console.error('Error fetching check-in records:', error)
@@ -165,59 +186,74 @@ function Dashboard() {
     }
   }, [editingClassroom, db])
 
+  /**
+   * useEffect: Load 'checked' status for students when a check-in record is currently active.
+   */
   useEffect(() => {
     const loadCheckedStatus = async () => {
       if (!editingClassroom || !currentCheckinRecord) return
-      const studentsRef = collection(
-        db,
-        'classroom',
-        editingClassroom.id,
-        'checkin',
-        currentCheckinRecord.id,
-        'students'
-      )
-      const snapshot = await getDocs(studentsRef)
-      const checkedIds = snapshot.docs.map((doc) => doc.id) // IDs of students who checked in
+      try {
+        const studentsRef = collection(
+          db,
+          'classroom',
+          editingClassroom.id,
+          'checkin',
+          currentCheckinRecord.id,
+          'students'
+        )
+        const snapshot = await getDocs(studentsRef)
+        const checkedIds = snapshot.docs.map((doc) => doc.id) // IDs of checked-in students
 
-      const updated = editStudents.map((s) =>
-        checkedIds.includes(s.id) ? { ...s, checked: true } : { ...s, checked: false }
-      )
-      setEditStudents(updated)
+        const updated = editStudents.map((s) =>
+          checkedIds.includes(s.id) ? { ...s, checked: true } : { ...s, checked: false }
+        )
+        setEditStudents(updated)
+      } catch (error) {
+        console.error('Error loading checked status:', error)
+      }
     }
 
     loadCheckedStatus()
-  }, [editingClassroom, currentCheckinRecord, db])
+  }, [editingClassroom, currentCheckinRecord, db, editStudents])
 
+  /**
+   * handleAddStudent: Adds a selected student (from availableUsers) to the editing classroom.
+   */
   const handleAddStudent = async () => {
     if (!selectedStudent) return
 
-    // Check if the student is already added
+    // Prevent re-adding the same student
     if (editStudents.some(student => student.id === selectedStudent)) {
-      alert('นักเรียนนี้ถูกเพิ่มแล้ว.')
+      alert('This student is already added.')
       return
     }
 
     try {
       const userToAdd = availableUsers.find((user) => user.id === selectedStudent)
       if (!userToAdd) return
+
       const studentRef = doc(db, 'classroom', editingClassroom.id, 'students', userToAdd.id)
       await setDoc(studentRef, {
         stdid: userToAdd.id,
         name: userToAdd.name,
         status: 1,
       })
+
       setEditStudents([
         ...editStudents,
         { id: userToAdd.id, stdid: userToAdd.id, name: userToAdd.name, status: 1 }
       ])
-      alert('เพิ่มนักเรียนสำเร็จแล้ว.')
+      alert('Student added successfully.')
       setSelectedStudent('')
     } catch (err) {
       console.error('Error adding student inline:', err)
-      alert('เพิ่มนักเรียนไม่สำเร็จ.')
+      alert('Failed to add student.')
     }
   }
 
+  /**
+   * handleConfirmSignOut: Signs out the user and navigates back to the home page.
+   */
   const handleConfirmSignOut = async () => {
     try {
       await signOut(auth)
@@ -227,21 +263,29 @@ function Dashboard() {
     }
   }
 
+  /**
+   * toggleDropdown: Toggles the classroom card dropdown menu.
+   */
   const toggleDropdown = (id) => {
     setOpenDropdownId(prev => (prev === id ? null : id))
   }
 
+  /**
+   * handleDeleteClassroom: Deletes a classroom by ID if user confirms.
+   */
   const handleDeleteClassroom = async (classroomId) => {
-    if (!window.confirm("คุณแน่ใจว่าต้องการลบห้องเรียนนี้หรือไม่?")) return
+    if (!window.confirm('Are you sure you want to delete this classroom?')) return
     try {
       await deleteDoc(doc(db, 'classroom', classroomId))
       setClassrooms(prev => prev.filter(c => c.id !== classroomId))
     } catch (error) {
-      console.error("Error deleting classroom:", error)
+      console.error('Error deleting classroom:', error)
     }
   }
 
-  // Revised function to create a classroom document following the new structure  
+  /**
+   * handleCreateClassroom: Creates a new classroom document in Firestore.
+   */
   const handleCreateClassroom = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -259,7 +303,16 @@ function Dashboard() {
       })
       setClassrooms(prev => [
         ...prev,
-        { id: cid, owner: currentUser.uid, info: { code: classroomCode, name: classroomName, photo: photoURL, room: room } }
+        {
+          id: cid,
+          owner: currentUser.uid,
+          info: {
+            code: classroomCode,
+            name: classroomName,
+            photo: photoURL,
+            room: room
+          }
+        }
       ])
       setClassroomCode('')
       setClassroomName('')
@@ -267,17 +320,19 @@ function Dashboard() {
       setPhotoURL('')
       setShowCreate(false)
       if (manageMode) setManageMode(false)
-      alert('สร้างห้องเรียนสำเร็จแล้ว!')
+      alert('Classroom created successfully!')
     } catch (error) {
-      console.error('เกิดข้อผิดพลาดในการสร้างห้องเรียน:', error)
-      alert('เกิดข้อผิดพลาดในการสร้างห้องเรียน')
+      console.error('Error creating classroom:', error)
+      alert('Error creating classroom.')
     }
     setLoading(false)
   }
 
-  // Function to initialize edit form when a classroom is selected to edit
+  /**
+   * initEditClassroom: Initializes edit mode for a selected classroom.
+   */
   const initEditClassroom = (classroom) => {
-    setManageMode(true) // เพิ่มบรรทัดนี้เพื่อให้เข้าสู่โหมดแก้ไข
+    setManageMode(true)
     setEditingClassroom(classroom)
     setEditCode(classroom.info.code)
     setEditName(classroom.info.name)
@@ -285,13 +340,14 @@ function Dashboard() {
     setEditRoom(classroom.info.room)
     setEditMessage('')
     setOpenDropdownId(null)
-    setShowDetailEdit(false) // start with student management view
-    // Clear any previously loaded students or selected student
+    setShowDetailEdit(false)
     setEditStudents([])
     setSelectedStudent('')
   }
 
-  // Function to handle the classroom update
+  /**
+   * handleUpdateClassroom: Updates an existing classroom's info fields.
+   */
   const handleUpdateClassroom = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -304,50 +360,68 @@ function Dashboard() {
         'info.photo': editPhoto,
         'info.room': editRoom,
       })
-      // Update local state
+
+      // Update local state to reflect changes
       setClassrooms((prev) =>
         prev.map((c) =>
           c.id === editingClassroom.id
-            ? { ...c, info: { code: editCode, name: editName, photo: editPhoto, room: editRoom } }
+            ? {
+                ...c,
+                info: {
+                  code: editCode,
+                  name: editName,
+                  photo: editPhoto,
+                  room: editRoom
+                }
+              }
             : c
         )
       )
-      setEditMessage('แก้ไขห้องเรียนสำเร็จแล้ว.')
-      // Optionally, close edit mode after success:
-      // setEditingClassroom(null)
+
+      setEditMessage('Classroom updated successfully.')
     } catch (err) {
-      console.error('เกิดข้อผิดพลาดในการแก้ไขห้องเรียน: ', err)
-      setEditMessage('แก้ไขห้องเรียนไม่สำเร็จ.')
+      console.error('Error updating classroom:', err)
+      setEditMessage('Failed to update classroom.')
     }
     setLoading(false)
   }
 
+  /**
+   * handleCreateCheckin: Creates a new check-in record in the current editingClassroom.
+   */
   const handleCreateCheckin = async () => {
     if (!newCheckinCode || !newCheckinDate) {
-      alert('กรุณากรอก รหัสเช็คชื่อและเลือกวัน/เวลา')
+      alert('Please provide check-in code and date/time.')
       return
     }
     try {
-      // Create a new check-in record in the classroom's 'checkin' subcollection
-      const checkinRef = await addDoc(collection(db, 'classroom', editingClassroom.id, 'checkin'), {
+      const checkinRef = await addDoc(
+        collection(db, 'classroom', editingClassroom.id, 'checkin'),
+        {
+          code: newCheckinCode,
+          date: newCheckinDate,
+          status: 0
+        }
+      )
+      setCurrentCheckinRecord({
+        id: checkinRef.id,
         code: newCheckinCode,
         date: newCheckinDate,
         status: 0
       })
-      // Set local state for the newly created check-in record
-      setCurrentCheckinRecord({ id: checkinRef.id, code: newCheckinCode, date: newCheckinDate, status: 0 })
-      // Optionally clear the input fields
       setNewCheckinCode('')
       setNewCheckinDate('')
     } catch (error) {
       console.error('Error creating check-in record:', error)
-      alert('สร้างการเช็คชื่อไม่สำเร็จ')
+      alert('Failed to create check-in record.')
     }
   }
 
+  /**
+   * handleStudentCheckin: Marks a student as checked-in for the current check-in record.
+   */
   const handleStudentCheckin = async (studentId) => {
     try {
-      // Find the student data
       const student = editStudents.find(s => s.id === studentId)
       if (!student) return
 
@@ -384,20 +458,29 @@ function Dashboard() {
       )
     } catch (error) {
       console.error('Error storing student check-in:', error)
-      alert('ไม่สามารถเช็คชื่อนักเรียนได้')
+      alert('Failed to check in student.')
     }
   }
 
+  /**
+   * handleFinishCheckin: Sets the current check-in record status to "finished" (2).
+   */
   const handleFinishCheckin = async () => {
     if (!currentCheckinRecord) return
     try {
-      // Update the check-in record status to finished (2)
-      const checkinDocRef = doc(db, 'classroom', editingClassroom.id, 'checkin', currentCheckinRecord.id)
+      const checkinDocRef = doc(
+        db,
+        'classroom',
+        editingClassroom.id,
+        'checkin',
+        currentCheckinRecord.id
+      )
       await updateDoc(checkinDocRef, {
         status: 2
       })
-      alert('การเช็คชื่อเสร็จสิ้นแล้ว')
-      // After update, re-fetch all check-in records so the finished record is shown in the inline table
+      alert('Check-in process has been finalized.')
+
+      // Refresh the list of check-in records after finishing
       const checkinRef = collection(db, 'classroom', editingClassroom.id, 'checkin')
       const querySnapshot = await getDocs(checkinRef)
       const records = []
@@ -405,36 +488,44 @@ function Dashboard() {
         records.push({ id: docSnap.id, ...docSnap.data() })
       })
       setEditCheckinRecords(records)
-      // Optionally, clear the current check-in state so the creation form re-appears
+
+      // Clear the current check-in record to allow a new one
       setCurrentCheckinRecord(null)
     } catch (error) {
       console.error('Error finishing check-in:', error)
-      alert('เกิดข้อผิดพลาดในการสรุปการเช็คชื่อ')
+      alert('Error finalizing check-in.')
     }
   }
 
+  /**
+   * handleViewCheckinDetails: Displays check-in details in a modal for a specific record.
+   */
   const handleViewCheckinDetails = async (record) => {
     setSelectedCheckinForDetails(record)
     setShowCheckinDetailsModal(true)
-  
-    const studentsRef = collection(
-      db,
-      'classroom',
-      editingClassroom.id,
-      'checkin',
-      record.id,
-      'students'
-    )
-    const snapshot = await getDocs(studentsRef)
-    const checkedIds = snapshot.docs.map((doc) => doc.id)
-  
-    setEditStudents((prev) =>
-      prev.map((s) =>
-        checkedIds.includes(s.id)
-          ? { ...s, checked: true }
-          : { ...s, checked: false }
+
+    try {
+      const studentsRef = collection(
+        db,
+        'classroom',
+        editingClassroom.id,
+        'checkin',
+        record.id,
+        'students'
       )
-    )
+      const snapshot = await getDocs(studentsRef)
+      const checkedIds = snapshot.docs.map((doc) => doc.id)
+
+      setEditStudents((prev) =>
+        prev.map((s) =>
+          checkedIds.includes(s.id)
+            ? { ...s, checked: true }
+            : { ...s, checked: false }
+        )
+      )
+    } catch (error) {
+      console.error('Error viewing check-in details:', error)
+    }
   }
 
   return (
@@ -446,18 +537,26 @@ function Dashboard() {
           <ul className="space-y-4">
             <li>
               <button
-                onClick={() => { setManageMode(false); setShowCreate(false); setEditingClassroom(null) }}
+                onClick={() => {
+                  setManageMode(false)
+                  setShowCreate(false)
+                  setEditingClassroom(null)
+                }}
                 className="hover:text-blue-300 transition font-ChakraPetchTH"
               >
-                ห้องเรียนของคุณ
+                My Classrooms
               </button>
             </li>
             <li>
               <button
-                onClick={() => { setManageMode(true); setShowCreate(true); setEditingClassroom(null) }}
+                onClick={() => {
+                  setManageMode(true)
+                  setShowCreate(true)
+                  setEditingClassroom(null)
+                }}
                 className="hover:text-blue-300 transition font-ChakraPetchTH"
               >
-                สร้างห้องเรียน
+                Create Classroom
               </button>
             </li>
           </ul>
@@ -491,39 +590,42 @@ function Dashboard() {
       {/* Main Content */}
       <main className="flex-1 bg-blue-50 p-8 animate-fadeIn overflow-y-auto relative">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-ChakraPetchTH text-blue-900">แดชบอร์ด</h1>
+          <h1 className="text-3xl font-ChakraPetchTH text-blue-900">Dashboard</h1>
           <button
             onClick={() => setShowSignOutModal(true)}
             className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
           >
-            ออกจากระบบ
+            Sign Out
           </button>
         </div>
         <div className="bg-white rounded-lg p-6 shadow-lg">
           <h2 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
-            ยินดีต้อนรับสู่ระบบจัดการห้องเรียน, {profile?.name || currentUser?.email || 'User'}🥳
+            Welcome to the Classroom Management System, {profile?.name || currentUser?.email || 'User'}!
           </h2>
           <p className="text-blue-700 font-ChakraPetchTH mb-4">
-            ยินดีต้อนรับสู่ระบบจัดการห้องเรียนมหาวิทยาลัยขอนแก่น
+            Manage your classrooms at Khon Kaen University.
           </p>
           <div>
             <h3 className="text-lg font-ChakraPetchTH mb-4 text-blue-900">
               {manageMode
-                ? editingClassroom ? 'แก้ไขห้องเรียน' : 'สร้างห้องเรียน'
-                : 'ห้องเรียนของคุณ'}
+                ? editingClassroom
+                  ? 'Edit Classroom'
+                  : 'Create Classroom'
+                : 'Your Classrooms'}
             </h3>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {manageMode ? (
-                // ถ้ามี editingClassroom จะแสดงฟอร์มแก้ไขแบบ inline
                 editingClassroom ? (
+                  // Inline Edit Classroom Form
                   <div className="col-span-1 md:col-span-2 relative flex flex-col p-8 border-2 border-dashed border-blue-400 rounded-xl shadow-xl bg-blue-50">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-xl font-ChakraPetchTH text-blue-900">
                         {showDetailEdit
-                          ? `แก้ไขรายละเอียดห้องเรียน: ${editingClassroom.info.name}`
-                          : `จัดการนักเรียนในห้องเรียน: ${editingClassroom.info.name}`}
+                          ? `Edit Classroom Details: ${editingClassroom.info.name}`
+                          : `Manage Students: ${editingClassroom.info.name}`}
                       </h2>
-                      {/* Three dot button for dropdown */}
+                      {/* Three-dot button for dropdown */}
                       <div className="relative">
                         <button
                           onClick={() => setDropdownOpen((prev) => !prev)}
@@ -541,16 +643,22 @@ function Dashboard() {
                         {dropdownOpen && (
                           <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-md z-10">
                             <button
-                              onClick={() => { setShowDetailEdit(true); setDropdownOpen(false) }}
+                              onClick={() => {
+                                setShowDetailEdit(true)
+                                setDropdownOpen(false)
+                              }}
                               className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                             >
-                              แก้ไขรายละเอียดห้องเรียน
+                              Edit Classroom
                             </button>
                             <button
-                              onClick={() => { setShowDetailEdit(false); setDropdownOpen(false) }}
+                              onClick={() => {
+                                setShowDetailEdit(false)
+                                setDropdownOpen(false)
+                              }}
                               className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                             >
-                              จัดการนักเรียน
+                              Manage Students
                             </button>
                           </div>
                         )}
@@ -558,11 +666,11 @@ function Dashboard() {
                     </div>
 
                     {showDetailEdit ? (
-                      // Inline classroom detail edit form
+                      // Edit Classroom Details
                       <form onSubmit={handleUpdateClassroom} className="space-y-6">
                         <input
                           type="text"
-                          placeholder="รหัสวิชา (ex. SC310001)"
+                          placeholder="Subject Code (e.g., SC310001)"
                           value={editCode}
                           onChange={(e) => setEditCode(e.target.value)}
                           className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
@@ -570,7 +678,7 @@ function Dashboard() {
                         />
                         <input
                           type="text"
-                          placeholder="ชื่อวิชา (ex. Computer Programming)"
+                          placeholder="Subject Name (e.g., Computer Programming)"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
@@ -578,50 +686,54 @@ function Dashboard() {
                         />
                         <input
                           type="url"
-                          placeholder="URL รูปภาพ (ถ้ามี)"
+                          placeholder="Photo URL (optional)"
                           value={editPhoto}
                           onChange={(e) => setEditPhoto(e.target.value)}
                           className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                         />
                         <input
                           type="text"
-                          placeholder="ชื่อห้องเรียน (ex. SC5101)"
+                          placeholder="Classroom Name (e.g., SC5101)"
                           value={editRoom}
                           onChange={(e) => setEditRoom(e.target.value)}
                           className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                           required
                         />
-                        {editMessage && <p className="text-green-600 text-center">{editMessage}</p>}
+                        {editMessage && (
+                          <p className="text-green-600 text-center">{editMessage}</p>
+                        )}
                         <div className="flex justify-end space-x-4">
                           <button
                             type="button"
                             onClick={() => setEditingClassroom(null)}
                             className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-100 transition"
                           >
-                            ยกเลิก
+                            Cancel
                           </button>
                           <button
                             type="submit"
                             disabled={loading}
                             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
                           >
-                            {loading ? 'กำลังแก้ไข...' : 'บันทึกการแก้ไข'}
+                            {loading ? 'Updating...' : 'Save'}
                           </button>
                         </div>
                       </form>
                     ) : (
-                      // Inline student management view: show registered students and add new
+                      // Student Management
                       <>
                         <div className="mt-4">
-                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">นักเรียนที่ลงทะเบียน</h3>
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
+                            Registered Students
+                          </h3>
                           {editStudents.length > 0 ? (
                             <div className="overflow-x-auto">
                               <table className="w-full border">
                                 <thead>
                                   <tr className="bg-blue-100">
-                                    <th className="border p-2 text-left">รหัสนักเรียน</th>
-                                    <th className="border p-2 text-left">ชื่อ</th>
-                                    <th className="border p-2 text-left">สถานะ</th>
+                                    <th className="border p-2 text-left">Student ID</th>
+                                    <th className="border p-2 text-left">Name</th>
+                                    <th className="border p-2 text-left">Status</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -630,7 +742,7 @@ function Dashboard() {
                                       <td className="border p-2">{student.stdid}</td>
                                       <td className="border p-2">{student.name}</td>
                                       <td className="border p-2">
-                                        {student.status === 0 ? 'รออนุมัติ' : 'ตรวจสอบแล้ว'}
+                                        {student.status === 0 ? 'Pending' : 'Approved'}
                                       </td>
                                     </tr>
                                   ))}
@@ -638,19 +750,23 @@ function Dashboard() {
                               </table>
                             </div>
                           ) : (
-                            <p className="text-center text-gray-700">ยังไม่มีนักเรียนที่ลงทะเบียน</p>
+                            <p className="text-center text-gray-700">
+                              No students have registered yet.
+                            </p>
                           )}
                         </div>
 
                         <div className="mt-8">
-                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">เพิ่มนักเรียน</h3>
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
+                            Add Students
+                          </h3>
                           <div className="mb-4">
                             <select
                               value={selectedStudent}
                               onChange={(e) => setSelectedStudent(e.target.value)}
                               className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
                             >
-                              <option value="">-- เลือกนักเรียน --</option>
+                              <option value="">-- Choose a student --</option>
                               {availableUsers.map((user) => (
                                 <option key={user.id} value={user.id}>
                                   {user.name} ({user.email})
@@ -658,31 +774,30 @@ function Dashboard() {
                               ))}
                             </select>
                           </div>
-                          {/* Button row */}
                           <div className="flex space-x-4">
                             <button
                               type="button"
                               onClick={handleAddStudent}
                               className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
                             >
-                              เพิ่มนักเรียน
+                              Add Student
                             </button>
                             <button
                               type="button"
                               onClick={() => setShowAttendanceInline(prev => !prev)}
                               className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
                             >
-                              {currentCheckinRecord ? "แสดงตารางเช็คชื่อ" : "สร้างการเช็คชื่อ"}
+                              {currentCheckinRecord ? 'Show Check-in Table' : 'Create Check-in'}
                             </button>
                           </div>
 
-                          {/* If inline check-in view is toggled and no current record has been created, show creation form */}
+                          {/* Inline Check-in Creation Form */}
                           {showAttendanceInline && !currentCheckinRecord && (
                             <div className="mt-4 p-4 border border-gray-300 rounded-lg">
                               <div className="space-y-4">
                                 <input
                                   type="text"
-                                  placeholder="รหัสเช็คชื่อ"
+                                  placeholder="Check-in Code"
                                   value={newCheckinCode}
                                   onChange={(e) => setNewCheckinCode(e.target.value)}
                                   className="w-full p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
@@ -698,28 +813,28 @@ function Dashboard() {
                                   onClick={handleCreateCheckin}
                                   className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
                                 >
-                                  สร้างการเช็คชื่อ
+                                  Create Check-in
                                 </button>
                               </div>
                             </div>
                           )}
 
-                          {/* If inline check-in view is toggled and a record exists, show the check-in table */}
+                          {/* Inline Check-in Table */}
                           {showAttendanceInline && currentCheckinRecord && (
                             <div className="mt-4 p-4 border border-gray-300 rounded-lg">
                               <div className="space-y-4">
                                 <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
-                                  ตารางการเช็คชื่อ (รหัส: {currentCheckinRecord.code}, เวลา: {currentCheckinRecord.date})
+                                  Check-in Table (Code: {currentCheckinRecord.code}, Time: {currentCheckinRecord.date})
                                 </h3>
                                 {editStudents.length > 0 ? (
                                   <div className="overflow-x-auto">
                                     <table className="w-full border">
                                       <thead>
                                         <tr className="bg-blue-100">
-                                          <th className="border p-2 text-left">ลำดับที่</th>
-                                          <th className="border p-2 text-left">รหัสนักเรียน</th>
-                                          <th className="border p-2 text-left">ชื่อ</th>
-                                          <th className="border p-2 text-left">สถานะ</th>
+                                          <th className="border p-2 text-left">No.</th>
+                                          <th className="border p-2 text-left">Student ID</th>
+                                          <th className="border p-2 text-left">Name</th>
+                                          <th className="border p-2 text-left">Status</th>
                                           <th className="border p-2 text-left">Action</th>
                                         </tr>
                                       </thead>
@@ -730,16 +845,20 @@ function Dashboard() {
                                             <td className="border p-2">{student.stdid}</td>
                                             <td className="border p-2">{student.name}</td>
                                             <td className="border p-2">
-                                              {student.checked ? 'เช็คชื่อแล้ว' : 'ยังไม่เช็ค'}
+                                              {student.checked ? 'Checked In' : 'Not Checked'}
                                             </td>
                                             <td className="border p-2">
                                               <button
                                                 type="button"
                                                 onClick={() => handleStudentCheckin(student.id)}
                                                 disabled={student.checked}
-                                                className={`px-3 py-1 rounded ${student.checked ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} text-white transition`}
+                                                className={`px-3 py-1 rounded ${
+                                                  student.checked
+                                                    ? 'bg-gray-400'
+                                                    : 'bg-green-600 hover:bg-green-700'
+                                                } text-white transition`}
                                               >
-                                                เช็คชื่อ
+                                                Check In
                                               </button>
                                             </td>
                                           </tr>
@@ -748,14 +867,16 @@ function Dashboard() {
                                     </table>
                                   </div>
                                 ) : (
-                                  <p className="text-center text-gray-700">ยังไม่มีนักเรียนในคลาส</p>
+                                  <p className="text-center text-gray-700">
+                                    No students in this classroom yet.
+                                  </p>
                                 )}
                                 <button
                                   type="button"
                                   onClick={handleFinishCheckin}
                                   className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition mt-4"
                                 >
-                                  เสร็จสิ้นการเช็คชื่อ
+                                  Finalize Check-in
                                 </button>
                               </div>
                             </div>
@@ -763,17 +884,19 @@ function Dashboard() {
                         </div>
 
                         <div className="mt-8">
-                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">ตารางการเช็คชื่อ</h3>
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
+                            Check-in Records
+                          </h3>
                           {editCheckinRecords.length > 0 ? (
                             <div className="overflow-x-auto">
                               <table className="w-full border">
                                 <thead>
                                   <tr className="bg-blue-100">
-                                    <th className="border p-2 text-left">ลำดับที่</th>
-                                    <th className="border p-2 text-left">รหัสเช็คชื่อ</th>
-                                    <th className="border p-2 text-left">วัน/เวลา</th>
-                                    <th className="border p-2 text-left">สถานะ</th>
-                                    <th className="border p-2 text-left">รายละเอียด</th>
+                                    <th className="border p-2 text-left">No.</th>
+                                    <th className="border p-2 text-left">Check-in Code</th>
+                                    <th className="border p-2 text-left">Date/Time</th>
+                                    <th className="border p-2 text-left">Status</th>
+                                    <th className="border p-2 text-left">Details</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -784,10 +907,10 @@ function Dashboard() {
                                       <td className="border p-2">{record.date}</td>
                                       <td className="border p-2">
                                         {record.status === 0
-                                          ? 'ยังไม่เริ่ม'
+                                          ? 'Not Started'
                                           : record.status === 1
-                                          ? 'กำลังเช็คชื่อ'
-                                          : 'เสร็จสิ้น'}
+                                          ? 'In Progress'
+                                          : 'Finished'}
                                       </td>
                                       <td className="border p-2">
                                         <button
@@ -795,7 +918,7 @@ function Dashboard() {
                                           onClick={() => handleViewCheckinDetails(record)}
                                           className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition"
                                         >
-                                          ดูรายละเอียด
+                                          Details
                                         </button>
                                       </td>
                                     </tr>
@@ -804,79 +927,84 @@ function Dashboard() {
                               </table>
                             </div>
                           ) : (
-                            <p className="text-center text-gray-700">ยังไม่มีข้อมูลการเช็คชื่อ</p>
+                            <p className="text-center text-gray-700">
+                              No check-in records yet.
+                            </p>
                           )}
                         </div>
                       </>
                     )}
                   </div>
+                ) : showCreate ? (
+                  // Create Classroom Form
+                  <div className="col-span-1 md:col-span-2 relative flex flex-col p-8 border-2 border-dashed border-blue-400 rounded-xl shadow-xl bg-blue-50">
+                    <form onSubmit={handleCreateClassroom} className="space-y-6">
+                      <input
+                        type="text"
+                        placeholder="Subject Code (e.g., SC310001)"
+                        value={classroomCode}
+                        onChange={(e) => setClassroomCode(e.target.value)}
+                        className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Subject Name (e.g., Computer Programming)"
+                        value={classroomName}
+                        onChange={(e) => setClassroomName(e.target.value)}
+                        className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Classroom Name (e.g., SC5101)"
+                        value={room}
+                        onChange={(e) => setRoom(e.target.value)}
+                        className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                        required
+                      />
+                      <input
+                        type="url"
+                        placeholder="Photo URL (optional)"
+                        value={photoURL}
+                        onChange={(e) => setPhotoURL(e.target.value)}
+                        className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                      />
+                      <div className="flex justify-end space-x-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCreate(false)
+                            setManageMode(false)
+                          }}
+                          className="px-6 py-3 rounded border border-gray-300 hover:bg-gray-100 transition"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition shadow-md"
+                        >
+                          {loading ? 'Creating...' : 'Create'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 ) : (
-                  // ถ้ายังไม่ได้เลือกแก้ไข ให้แสดงฟอร์มสร้างห้องเรียน
-                  showCreate ? (
-                    <div className="col-span-1 md:col-span-2 relative flex flex-col p-8 border-2 border-dashed border-blue-400 rounded-xl shadow-xl bg-blue-50">
-                      <form onSubmit={handleCreateClassroom} className="space-y-6">
-                        <input
-                          type="text"
-                          placeholder="รหัสวิชา (ex. SC310001)"
-                          value={classroomCode}
-                          onChange={(e) => setClassroomCode(e.target.value)}
-                          className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-                          required
-                        />
-                        <input
-                          type="text"
-                          placeholder="ชื่อวิชา (ex. Computer Programming)"
-                          value={classroomName}
-                          onChange={(e) => setClassroomName(e.target.value)}
-                          className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-                          required
-                        />
-                        <input
-                          type="text"
-                          placeholder="ชื่อห้องเรียน (ex. SC5101)"
-                          value={room}
-                          onChange={(e) => setRoom(e.target.value)}
-                          className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-                          required
-                        />
-                        <input
-                          type="url"
-                          placeholder="URL รูปภาพ (ถ้ามี)"
-                          value={photoURL}
-                          onChange={(e) => setPhotoURL(e.target.value)}
-                          className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-                        />
-                        <div className="flex justify-end space-x-4">
-                          <button
-                            type="button"
-                            onClick={() => { setShowCreate(false); setManageMode(false) }}
-                            className="px-6 py-3 rounded border border-gray-300 hover:bg-gray-100 transition"
-                          >
-                            ยกเลิก
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={loading}
-                            className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition shadow-md"
-                          >
-                            {loading ? 'กำลังสร้าง...' : 'สร้าง'}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => setShowCreate(true)}
-                      className="col-span-1 md:col-span-2 relative flex flex-col items-center justify-center border-4 border-dashed border-blue-400 rounded-xl h-60 cursor-pointer hover:bg-blue-100 transition duration-300"
-                    >
-                      <span className="text-6xl text-blue-500">+</span>
-                      <span className="mt-4 text-2xl text-blue-700 font-bold">
-                        สร้างห้องเรียนใหม่
-                      </span>
-                    </div>
-                  )
+                  // "Create New Classroom" prompt
+                  <div
+                    onClick={() => setShowCreate(true)}
+                    className="col-span-1 md:col-span-2 relative flex flex-col items-center justify-center border-4 border-dashed border-blue-400 rounded-xl h-60 cursor-pointer hover:bg-blue-100 transition duration-300"
+                  >
+                    <span className="text-6xl text-blue-500">+</span>
+                    <span className="mt-4 text-2xl text-blue-700 font-bold">
+                      Create New Classroom
+                    </span>
+                  </div>
                 )
               ) : (
+                // List of existing classrooms
                 <>
                   {classrooms.map((classroom) => (
                     <div
@@ -903,7 +1031,7 @@ function Dashboard() {
                             onClick={() => initEditClassroom(classroom)}
                             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
                           >
-                            จัดการ
+                            Manage
                           </button>
                           <button
                             onClick={() => {
@@ -912,7 +1040,7 @@ function Dashboard() {
                             }}
                             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
                           >
-                            ลบ
+                            Delete
                           </button>
                         </div>
                       )}
@@ -931,8 +1059,12 @@ function Dashboard() {
                         <p className="font-semibold text-blue-900 text-xl mb-1">
                           {classroom.info.name}
                         </p>
-                        <p className="text-blue-700 text-lg">Code: {classroom.info.code}</p>
-                        <p className="text-blue-700 text-lg">Room: {classroom.info.room}</p>
+                        <p className="text-blue-700 text-lg">
+                          Code: {classroom.info.code}
+                        </p>
+                        <p className="text-blue-700 text-lg">
+                          Room: {classroom.info.room}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -942,25 +1074,29 @@ function Dashboard() {
           </div>
         </div>
       </main>
-      
-      {/* Modal สำหรับดูรายละเอียดการเช็คชื่อ */}
+
+      {/* Modal: Check-in Details */}
       {showCheckinDetailsModal && selectedCheckinForDetails && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-600 bg-opacity-50 z-50">
-          <div className="bg-white rounded-lg p-6 w-11/12 md:w-1/2">
-            <h3 className="text-xl font-bold mb-4">รายละเอียดการเช็คชื่อ</h3>
-            <p>รหัสเช็คชื่อ: {selectedCheckinForDetails.code}</p>
-            <p>เวลา: {selectedCheckinForDetails.date}</p>
-            <p>
-              นักเรียนที่มาเช็คชื่อ: {editStudents.filter(s => s.checked).length} จาก {editStudents.length}
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-600 bg-opacity-30 z-50">
+          <div className="col-span-1 md:col-span-2 relative flex flex-col p-8 border-2 border-dashed border-blue-400 rounded-xl shadow-xl bg-blue-50 w-11/12 md:w-1/2">
+            <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">Check-in Details</h3>
+            <p className="text-blue-700 font-ChakraPetchTH mb-2">
+              Check-in Code: {selectedCheckinForDetails.code}
+            </p>
+            <p className="text-blue-700 font-ChakraPetchTH mb-2">
+              Date/Time: {selectedCheckinForDetails.date}
+            </p>
+            <p className="text-blue-700 font-ChakraPetchTH">
+              Students Checked In: {editStudents.filter(s => s.checked).length} / {editStudents.length}
             </p>
             <div className="mt-4 overflow-x-auto">
               <table className="w-full border">
                 <thead>
                   <tr className="bg-blue-100">
-                    <th className="border p-2 text-left">ลำดับที่</th>
-                    <th className="border p-2 text-left">รหัสนักเรียน</th>
-                    <th className="border p-2 text-left">ชื่อ</th>
-                    <th className="border p-2 text-left">สถานะ</th>
+                    <th className="border p-2 text-left">No.</th>
+                    <th className="border p-2 text-left">Student ID</th>
+                    <th className="border p-2 text-left">Name</th>
+                    <th className="border p-2 text-left">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -969,7 +1105,9 @@ function Dashboard() {
                       <td className="border p-2">{index + 1}</td>
                       <td className="border p-2">{student.stdid}</td>
                       <td className="border p-2">{student.name}</td>
-                      <td className="border p-2">{student.checked ? 'เช็คชื่อแล้ว' : 'ยังไม่เช็ค'}</td>
+                      <td className="border p-2">
+                        {student.checked ? 'Checked In' : 'Not Checked'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -979,16 +1117,16 @@ function Dashboard() {
               <button
                 type="button"
                 onClick={() => setShowCheckinDetailsModal(false)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 shadow-xs transition"
               >
-                ปิด
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Sign Out Confirmation Modal (ยังคงใช้ modalสำหรับออกจากระบบ) */}
+      {/* Modal: Sign Out Confirmation */}
       {showSignOutModal && (
         <div className="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
           <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true"></div>
@@ -998,14 +1136,32 @@ function Dashboard() {
                 <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                   <div className="sm:flex sm:items-start">
                     <div className="mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                      <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                      <svg
+                        className="h-6 w-6 text-red-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth="1.5"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                        />
                       </svg>
                     </div>
                     <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                      <h3 className="text-base font-semibold text-gray-900" id="modal-title">ยืนยันออกจากระบบ</h3>
+                      <h3
+                        className="text-base font-semibold text-gray-900"
+                        id="modal-title"
+                      >
+                        Confirm Sign Out
+                      </h3>
                       <div className="mt-2">
-                        <p className="text-sm text-gray-500">คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ?</p>
+                        <p className="text-sm text-gray-500">
+                          Are you sure you want to sign out?
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1019,14 +1175,14 @@ function Dashboard() {
                     }}
                     className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-red-500 sm:ml-3 sm:w-auto"
                   >
-                    ยืนยันออกจากระบบ
+                    Yes, Sign Out
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowSignOutModal(false)}
                     className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
                   >
-                    ยกเลิก
+                    Cancel
                   </button>
                 </div>
               </div>
