@@ -959,7 +959,7 @@ function Dashboard() {
                                           onClick={() => handleAddQuiz(record)}
                                           className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition m-2"
                                         >
-                                          Add Quiz
+                                          Quiz
                                         </button>
                                       </td>
                                     </tr>

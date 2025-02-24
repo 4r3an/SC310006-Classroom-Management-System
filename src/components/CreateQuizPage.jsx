@@ -19,8 +19,8 @@ function CreateQuizPage() {
   const auth = getAuth()
   const db = getFirestore(app)
 
-  // อ่านค่า classroomId และ checkinId จาก query string
-  const { classroomId } = useParams()  // อ่านจาก path param
+  // อ่านค่า classroomId จาก path param และ checkinId จาก query param
+  const { classroomId } = useParams()
   const [searchParams] = useSearchParams()
   const checkinId = searchParams.get('checkinId') || ''
 
@@ -30,7 +30,7 @@ function CreateQuizPage() {
   // State: สำหรับเก็บรายการ question ของ checkin ปัจจุบัน
   const [questions, setQuestions] = useState([])
 
-  // State: ใช้สำหรับ form เพิ่ม/แก้ไข question
+  // State: ฟอร์มเพิ่ม/แก้ไข question
   const [questionNo, setQuestionNo] = useState('')
   const [questionText, setQuestionText] = useState('')
   const [questionShow, setQuestionShow] = useState(false)
@@ -38,6 +38,11 @@ function CreateQuizPage() {
 
   // State: modal ยืนยัน sign out
   const [showSignOutModal, setShowSignOutModal] = useState(false)
+
+  // State: ใช้แสดง “Give Score” แบบ inline
+  const [gradingQuestion, setGradingQuestion] = useState(null)  // question object ที่กำลังให้คะแนน
+  const [studentAnswers, setStudentAnswers] = useState([])      // รายการคำตอบของนักเรียน
+  const [loadingAnswers, setLoadingAnswers] = useState(false)   // ระบุว่ากำลังโหลดคำตอบอยู่หรือไม่
 
   // ดึง current user
   const currentUser = auth.currentUser
@@ -68,7 +73,7 @@ function CreateQuizPage() {
         snap.forEach((docSnap) => {
           list.push({ id: docSnap.id, ...docSnap.data() })
         })
-        // เรียงตาม question_no เป็นตัวเลข (ถ้าต้องการ)
+        // เรียงตาม question_no
         list.sort((a, b) => (a.question_no > b.question_no ? 1 : -1))
         setQuestions(list)
       } catch (error) {
@@ -78,7 +83,7 @@ function CreateQuizPage() {
     loadQuestions()
   }, [db, classroomId, checkinId])
 
-  // เมื่อกดปุ่ม "Save Question"
+  // สร้าง/แก้ไข Question
   const handleSaveQuestion = async () => {
     if (!classroomId || !checkinId) {
       alert('Missing classroomId or checkinId')
@@ -91,19 +96,11 @@ function CreateQuizPage() {
 
     try {
       // ถ้ามี editingQuestionId => แก้ไข document เดิม
-      // ถ้าไม่มี => สร้าง doc ใหม่ (ใช้ uuid หรือใช้ questionNo เป็น id)
+      // ถ้าไม่มี => สร้าง doc ใหม่ (ใช้ uuid หรือ questionNo เป็น id ก็ได้)
       const newId = editingQuestionId || uuidv4()
-      const questionDocRef = doc(
-        db,
-        'classroom',
-        classroomId,
-        'checkin',
-        checkinId,
-        'question',
-        newId
-      )
+      const questionDocRef = doc(db, 'classroom', classroomId, 'checkin', checkinId, 'question', newId)
       await setDoc(questionDocRef, {
-        question_no: parseInt(questionNo, 10), // แปลงเป็นตัวเลข
+        question_no: parseInt(questionNo, 10),
         question_text: questionText,
         question_show: questionShow
       })
@@ -124,14 +121,13 @@ function CreateQuizPage() {
       })
       list.sort((a, b) => (a.question_no > b.question_no ? 1 : -1))
       setQuestions(list)
-
     } catch (error) {
       console.error('Error saving question:', error)
       alert('Error saving question. See console for details.')
     }
   }
 
-  // แก้ไข question: โหลดข้อมูล question มาใส่ฟอร์ม
+  // แก้ไข question
   const handleEditQuestion = (q) => {
     setEditingQuestionId(q.id)
     setQuestionNo(q.question_no)
@@ -153,7 +149,7 @@ function CreateQuizPage() {
     }
   }
 
-  // แก้ไขเฉพาะ field question_show (toggle)
+  // toggle question_show
   const handleToggleShow = async (q) => {
     try {
       const ref = doc(db, 'classroom', classroomId, 'checkin', checkinId, 'question', q.id)
@@ -166,6 +162,106 @@ function CreateQuizPage() {
       )
     } catch (error) {
       console.error('Error toggling question_show:', error)
+    }
+  }
+
+  // เมื่อกด "Give Score" => โหลดคำตอบของนักเรียน (answers -> qno -> students -> stdid)
+  // gradingQuestion = question object ที่เรากำลังให้คะแนน
+  const handleGradeQuestion = async (q) => {
+    if (!classroomId || !checkinId) {
+      alert('Missing classroomId or checkinId')
+      return
+    }
+    // q เป็น question doc => ต้องใช้ question_no เป็น key ของ answers
+    // สมมติเราจะใช้ question_no เป็น doc key (qno)
+    const qno = String(q.question_no)
+
+    setGradingQuestion(q)       // เก็บคำถามที่กำลังให้คะแนน
+    setStudentAnswers([])       // เคลียร์ก่อน
+    setLoadingAnswers(true)
+
+    try {
+      // path: /classroom/{classroomId}/checkin/{checkinId}/answers/{qno}/students/{stdid}
+      const answersDocRef = doc(
+        db,
+        'classroom',
+        classroomId,
+        'checkin',
+        checkinId,
+        'answers',
+        qno
+      )
+      // สร้างไว้ก่อน เผื่อยังไม่มี
+      await setDoc(answersDocRef, { text: q.question_text }, { merge: true })
+
+      // จากนั้นไปโหลด students sub-collection
+      const studentsColRef = collection(answersDocRef, 'students')
+      const snap = await getDocs(studentsColRef)
+
+      const arr = []
+      snap.forEach((docSnap) => {
+        arr.push({
+          studentDocId: docSnap.id, // ตรงกับ uid ของนักเรียน
+          ...docSnap.data()
+        })
+      })
+      setStudentAnswers(arr)
+    } catch (error) {
+      console.error('Error loading student answers:', error)
+      alert('Failed to load student answers.')
+    } finally {
+      setLoadingAnswers(false)
+    }
+  }
+
+  // ปิด/ยกเลิกการให้คะแนน
+  const handleCloseGrading = () => {
+    setGradingQuestion(null)
+    setStudentAnswers([])
+  }
+
+  // เปลี่ยนค่าคะแนนใน state ก่อนบันทึก
+  const handleScoreChange = (index, value) => {
+    setStudentAnswers((prev) => {
+      const newArr = [...prev]
+      newArr[index] = { ...newArr[index], score: value }
+      return newArr
+    })
+  }
+
+  // บันทึกคะแนนลง Firestore => answers -> qno -> students -> stdid -> {score}
+  const handleSaveScore = async (index) => {
+    if (!gradingQuestion) return
+    const student = studentAnswers[index]
+    // ตัวอย่าง: { studentDocId: 'XXXUID', time: '...', answer: '...', score: 10 }
+    const qno = String(gradingQuestion.question_no)
+
+    if (student.score == null || student.score === '') {
+      alert('Please enter a valid score')
+      return
+    }
+
+    try {
+      const answersDocRef = doc(
+        db,
+        'classroom',
+        classroomId,
+        'checkin',
+        checkinId,
+        'answers',
+        qno
+      )
+      const studentRef = doc(answersDocRef, 'students', student.studentDocId)
+
+      // บันทึกค่า score ไว้ใน doc
+      await updateDoc(studentRef, {
+        score: Number(student.score)
+      })
+
+      alert(`Score saved for student: ${student.studentDocId}`)
+    } catch (error) {
+      console.error('Error saving score:', error)
+      alert('Failed to save score.')
     }
   }
 
@@ -335,15 +431,83 @@ function CreateQuizPage() {
                         </button>
                         <button
                           onClick={() => handleDeleteQuestion(q.id)}
-                          className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition"
+                          className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition mr-2"
                         >
                           Delete
+                        </button>
+                        {/* ปุ่ม Give Score => แสดงตารางคำตอบของนักเรียน */}
+                        <button
+                          onClick={() => handleGradeQuestion(q)}
+                          className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition"
+                        >
+                          Give Score
                         </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* ส่วนแสดงตารางของนักเรียนที่ตอบ (inline) */}
+          {gradingQuestion && (
+            <div className="mt-8 border p-4 rounded-md bg-blue-50">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">
+                  Student Answers for Question #{gradingQuestion.question_no}
+                </h3>
+                <button
+                  onClick={handleCloseGrading}
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 transition"
+                >
+                  Close
+                </button>
+              </div>
+              {loadingAnswers ? (
+                <p>Loading answers...</p>
+              ) : studentAnswers.length === 0 ? (
+                <p>No student answers found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border">
+                    <thead>
+                      <tr className="bg-blue-100">
+                        <th className="border p-2 text-left">Student ID</th>
+                        <th className="border p-2 text-left">Answer</th>
+                        <th className="border p-2 text-left">Time</th>
+                        <th className="border p-2 text-left">Score</th>
+                        <th className="border p-2 text-left">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {studentAnswers.map((std, idx) => (
+                        <tr key={std.studentDocId} className="hover:bg-blue-50">
+                          <td className="border p-2">{std.studentDocId}</td>
+                          <td className="border p-2">{std.answer || '-'}</td>
+                          <td className="border p-2">{std.time || '-'}</td>
+                          <td className="border p-2">
+                            <input
+                              type="number"
+                              className="w-20 p-1 border rounded"
+                              value={std.score || ''}
+                              onChange={(e) => handleScoreChange(idx, e.target.value)}
+                            />
+                          </td>
+                          <td className="border p-2">
+                            <button
+                              onClick={() => handleSaveScore(idx)}
+                              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition"
+                            >
+                              Save
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
