@@ -24,10 +24,10 @@ function CreateQuizPage() {
   const [searchParams] = useSearchParams()
   const checkinId = searchParams.get('checkinId') || ''
 
-  // State: สำหรับเก็บข้อมูล user profile (เฉพาะชื่อกับรูป)
+  // State: โปรไฟล์ผู้ใช้
   const [profile, setProfile] = useState(null)
 
-  // State: สำหรับเก็บรายการ question ของ checkin ปัจจุบัน
+  // State: คำถาม (question) ของ checkin ปัจจุบัน
   const [questions, setQuestions] = useState([])
 
   // State: ฟอร์มเพิ่ม/แก้ไข question
@@ -39,15 +39,15 @@ function CreateQuizPage() {
   // State: modal ยืนยัน sign out
   const [showSignOutModal, setShowSignOutModal] = useState(false)
 
-  // State: ใช้แสดง “Give Score” แบบ inline
-  const [gradingQuestion, setGradingQuestion] = useState(null)  // question object ที่กำลังให้คะแนน
-  const [studentAnswers, setStudentAnswers] = useState([])      // รายการคำตอบของนักเรียน
-  const [loadingAnswers, setLoadingAnswers] = useState(false)   // ระบุว่ากำลังโหลดคำตอบอยู่หรือไม่
+  // State: ให้คะแนนแบบ inline
+  const [gradingQuestion, setGradingQuestion] = useState(null) // question object
+  const [studentAnswers, setStudentAnswers] = useState([])     // รายการคำตอบ
+  const [loadingAnswers, setLoadingAnswers] = useState(false)
 
-  // ดึง current user
+  // current user
   const currentUser = auth.currentUser
 
-  // โหลดข้อมูลโปรไฟล์ผู้ใช้
+  // โหลดโปรไฟล์ผู้ใช้
   useEffect(() => {
     async function fetchProfile() {
       if (currentUser) {
@@ -61,11 +61,10 @@ function CreateQuizPage() {
     fetchProfile()
   }, [currentUser, db])
 
-  // โหลดข้อมูล question ทั้งหมดใน sub-collection "question"
+  // โหลด question ทั้งหมด
   useEffect(() => {
     async function loadQuestions() {
       if (!classroomId || !checkinId) return
-
       try {
         const questionRef = collection(db, 'classroom', classroomId, 'checkin', checkinId, 'question')
         const snap = await getDocs(questionRef)
@@ -74,7 +73,7 @@ function CreateQuizPage() {
           list.push({ id: docSnap.id, ...docSnap.data() })
         })
         // เรียงตาม question_no
-        list.sort((a, b) => (a.question_no > b.question_no ? 1 : -1))
+        list.sort((a, b) => (a.question_no - b.question_no))
         setQuestions(list)
       } catch (error) {
         console.error('Error loading questions:', error)
@@ -83,7 +82,7 @@ function CreateQuizPage() {
     loadQuestions()
   }, [db, classroomId, checkinId])
 
-  // สร้าง/แก้ไข Question
+  // สร้าง/แก้ไข question
   const handleSaveQuestion = async () => {
     if (!classroomId || !checkinId) {
       alert('Missing classroomId or checkinId')
@@ -95,8 +94,6 @@ function CreateQuizPage() {
     }
 
     try {
-      // ถ้ามี editingQuestionId => แก้ไข document เดิม
-      // ถ้าไม่มี => สร้าง doc ใหม่ (ใช้ uuid หรือ questionNo เป็น id ก็ได้)
       const newId = editingQuestionId || uuidv4()
       const questionDocRef = doc(db, 'classroom', classroomId, 'checkin', checkinId, 'question', newId)
       await setDoc(questionDocRef, {
@@ -107,19 +104,19 @@ function CreateQuizPage() {
 
       alert(editingQuestionId ? 'Question updated successfully' : 'Question created successfully')
 
-      // เคลียร์ฟอร์ม
+      // เคลียร์ form
       setQuestionNo('')
       setQuestionText('')
       setQuestionShow(false)
       setEditingQuestionId(null)
 
-      // Reload questions
+      // Reload
       const snap = await getDocs(collection(db, 'classroom', classroomId, 'checkin', checkinId, 'question'))
       const list = []
       snap.forEach((docSnap) => {
         list.push({ id: docSnap.id, ...docSnap.data() })
       })
-      list.sort((a, b) => (a.question_no > b.question_no ? 1 : -1))
+      list.sort((a, b) => (a.question_no - b.question_no))
       setQuestions(list)
     } catch (error) {
       console.error('Error saving question:', error)
@@ -138,7 +135,6 @@ function CreateQuizPage() {
   // ลบ question
   const handleDeleteQuestion = async (questionId) => {
     if (!window.confirm('Are you sure you want to delete this question?')) return
-
     try {
       await deleteDoc(doc(db, 'classroom', classroomId, 'checkin', checkinId, 'question', questionId))
       alert('Question deleted successfully.')
@@ -165,46 +161,49 @@ function CreateQuizPage() {
     }
   }
 
-  // เมื่อกด "Give Score" => โหลดคำตอบของนักเรียน (answers -> qno -> students -> stdid)
-  // gradingQuestion = question object ที่เรากำลังให้คะแนน
+  // เมื่อกด "Give Score" => โหลดคำตอบของนักเรียน + ดึง "ชื่อนักเรียน" จาก checkin/{checkinId}/students/{stdid}
   const handleGradeQuestion = async (q) => {
     if (!classroomId || !checkinId) {
       alert('Missing classroomId or checkinId')
       return
     }
-    // q เป็น question doc => ต้องใช้ question_no เป็น key ของ answers
-    // สมมติเราจะใช้ question_no เป็น doc key (qno)
     const qno = String(q.question_no)
 
-    setGradingQuestion(q)       // เก็บคำถามที่กำลังให้คะแนน
-    setStudentAnswers([])       // เคลียร์ก่อน
+    setGradingQuestion(q)
+    setStudentAnswers([])
     setLoadingAnswers(true)
 
     try {
-      // path: /classroom/{classroomId}/checkin/{checkinId}/answers/{qno}/students/{stdid}
-      const answersDocRef = doc(
-        db,
-        'classroom',
-        classroomId,
-        'checkin',
-        checkinId,
-        'answers',
-        qno
-      )
-      // สร้างไว้ก่อน เผื่อยังไม่มี
+      // ensure doc answers/{qno} มี field text: question_text
+      const answersDocRef = doc(db, 'classroom', classroomId, 'checkin', checkinId, 'answers', qno)
       await setDoc(answersDocRef, { text: q.question_text }, { merge: true })
 
-      // จากนั้นไปโหลด students sub-collection
+      // โหลด sub-collection answers/{qno}/students
       const studentsColRef = collection(answersDocRef, 'students')
       const snap = await getDocs(studentsColRef)
 
       const arr = []
-      snap.forEach((docSnap) => {
+      for (const docSnap of snap.docs) {
+        // { time, answer, score? }
+        const ansData = docSnap.data()
+        const studentUid = docSnap.id
+
+        // โหลด "ชื่อนักเรียน" จาก /classroom/{classroomId}/checkin/{checkinId}/students/{studentUid}
+        const stuDocRef = doc(db, 'classroom', classroomId, 'checkin', checkinId, 'students', studentUid)
+        const stuSnap = await getDoc(stuDocRef)
+
+        let studentName = '(No Name)'
+        if (stuSnap.exists()) {
+          const stuData = stuSnap.data()
+          studentName = stuData.name || '(No Name)'
+        }
+
         arr.push({
-          studentDocId: docSnap.id, // ตรงกับ uid ของนักเรียน
-          ...docSnap.data()
+          studentDocId: studentUid,
+          name: studentName,
+          ...ansData
         })
-      })
+      }
       setStudentAnswers(arr)
     } catch (error) {
       console.error('Error loading student answers:', error)
@@ -214,13 +213,13 @@ function CreateQuizPage() {
     }
   }
 
-  // ปิด/ยกเลิกการให้คะแนน
+  // ปิดตารางให้คะแนน
   const handleCloseGrading = () => {
     setGradingQuestion(null)
     setStudentAnswers([])
   }
 
-  // เปลี่ยนค่าคะแนนใน state ก่อนบันทึก
+  // เปลี่ยนค่าคะแนนใน state
   const handleScoreChange = (index, value) => {
     setStudentAnswers((prev) => {
       const newArr = [...prev]
@@ -229,11 +228,10 @@ function CreateQuizPage() {
     })
   }
 
-  // บันทึกคะแนนลง Firestore => answers -> qno -> students -> stdid -> {score}
+  // บันทึกคะแนนลง answers/{qno}/students/{stdid} -> {score: ...}
   const handleSaveScore = async (index) => {
     if (!gradingQuestion) return
     const student = studentAnswers[index]
-    // ตัวอย่าง: { studentDocId: 'XXXUID', time: '...', answer: '...', score: 10 }
     const qno = String(gradingQuestion.question_no)
 
     if (student.score == null || student.score === '') {
@@ -242,18 +240,8 @@ function CreateQuizPage() {
     }
 
     try {
-      const answersDocRef = doc(
-        db,
-        'classroom',
-        classroomId,
-        'checkin',
-        checkinId,
-        'answers',
-        qno
-      )
+      const answersDocRef = doc(db, 'classroom', classroomId, 'checkin', checkinId, 'answers', qno)
       const studentRef = doc(answersDocRef, 'students', student.studentDocId)
-
-      // บันทึกค่า score ไว้ใน doc
       await updateDoc(studentRef, {
         score: Number(student.score)
       })
@@ -265,7 +253,7 @@ function CreateQuizPage() {
     }
   }
 
-  // ฟังก์ชัน sign out
+  // sign out
   const handleSignOut = async () => {
     try {
       await signOut(auth)
@@ -379,7 +367,6 @@ function CreateQuizPage() {
               {editingQuestionId && (
                 <button
                   onClick={() => {
-                    // เคลียร์ form
                     setEditingQuestionId(null)
                     setQuestionNo('')
                     setQuestionText('')
@@ -393,7 +380,7 @@ function CreateQuizPage() {
             </div>
           </div>
 
-          {/* แสดงตาราง question ที่มีอยู่ */}
+          {/* ตาราง question */}
           <h3 className="text-lg font-ChakraPetchTH mb-2 text-blue-900">Question List</h3>
           {questions.length === 0 ? (
             <p className="text-gray-600">No questions found.</p>
@@ -409,13 +396,11 @@ function CreateQuizPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {questions.map((q, index) => (
+                  {questions.map((q) => (
                     <tr key={q.id} className="hover:bg-blue-50">
                       <td className="border p-2">{q.question_no}</td>
                       <td className="border p-2">{q.question_text}</td>
-                      <td className="border p-2">
-                        {q.question_show ? 'True' : 'False'}
-                      </td>
+                      <td className="border p-2">{q.question_show ? 'True' : 'False'}</td>
                       <td className="border p-2">
                         <button
                           onClick={() => handleEditQuestion(q)}
@@ -435,7 +420,6 @@ function CreateQuizPage() {
                         >
                           Delete
                         </button>
-                        {/* ปุ่ม Give Score => แสดงตารางคำตอบของนักเรียน */}
                         <button
                           onClick={() => handleGradeQuestion(q)}
                           className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition"
@@ -450,7 +434,7 @@ function CreateQuizPage() {
             </div>
           )}
 
-          {/* ส่วนแสดงตารางของนักเรียนที่ตอบ (inline) */}
+          {/* ส่วนตารางแสดงนักเรียนที่ตอบ quiz + ให้คะแนน */}
           {gradingQuestion && (
             <div className="mt-8 border p-4 rounded-md bg-blue-50">
               <div className="flex justify-between items-center mb-4">
@@ -474,6 +458,7 @@ function CreateQuizPage() {
                     <thead>
                       <tr className="bg-blue-100">
                         <th className="border p-2 text-left">Student ID</th>
+                        <th className="border p-2 text-left">Student Name</th>
                         <th className="border p-2 text-left">Answer</th>
                         <th className="border p-2 text-left">Time</th>
                         <th className="border p-2 text-left">Score</th>
@@ -484,6 +469,7 @@ function CreateQuizPage() {
                       {studentAnswers.map((std, idx) => (
                         <tr key={std.studentDocId} className="hover:bg-blue-50">
                           <td className="border p-2">{std.studentDocId}</td>
+                          <td className="border p-2">{std.name || '(No Name)'}</td>
                           <td className="border p-2">{std.answer || '-'}</td>
                           <td className="border p-2">{std.time || '-'}</td>
                           <td className="border p-2">
