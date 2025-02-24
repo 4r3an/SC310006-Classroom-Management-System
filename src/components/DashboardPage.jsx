@@ -528,6 +528,29 @@ function Dashboard() {
     }
   }
 
+  /**
+   * handleDeleteCheckin: Deletes a specific check-in record after confirmation.
+   */
+  const handleDeleteCheckin = async () => {
+    if (!editingClassroom || !selectedCheckinForDetails) return
+    if (!window.confirm('Are you sure you want to delete this check-in record?')) return
+
+    try {
+      await deleteDoc(
+        doc(db, 'classroom', editingClassroom.id, 'checkin', selectedCheckinForDetails.id)
+      )
+      // Update the check-in records state
+      setEditCheckinRecords((prev) =>
+        prev.filter((record) => record.id !== selectedCheckinForDetails.id)
+      )
+      alert('Check-in record deleted successfully.')
+      setShowCheckinDetailsModal(false)
+    } catch (error) {
+      console.error('Error deleting check-in record:', error)
+      alert('Failed to delete check-in record.')
+    }
+  }
+
   return (
     <div className="flex h-screen bg-blue-50 overflow-hidden">
       {/* Sidebar */}
@@ -1113,7 +1136,14 @@ function Dashboard() {
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-end mt-4 space-x-4">
+              <button
+                type="button"
+                onClick={handleDeleteCheckin}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 shadow-xs transition"
+              >
+                Delete
+              </button>
               <button
                 type="button"
                 onClick={() => setShowCheckinDetailsModal(false)}
