@@ -9,48 +9,65 @@ function EditProfilePage() {
   const db = getFirestore(app)
   const navigate = useNavigate()
   const [user, setUser] = useState(auth.currentUser)
-  const [displayName, setDisplayName] = useState(user?.displayName || '')
-  const [photoURL, setPhotoURL] = useState(user?.photoURL || '')
+  const [displayName, setDisplayName] = useState('')
+  const [photoURL, setPhotoURL] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [isEditing, setIsEditing] = useState(false)
 
-  // โหลดข้อมูลเพิ่มเติมจาก Firestore เมื่อคอมโพเนนต์ถูก mount
+  // โหลดข้อมูลโปรไฟล์เมื่อคอมโพเนนต์ถูกโหลด
   useEffect(() => {
-    if (user) {
-      const docRef = doc(db, 'users', user.uid)
-      getDoc(docRef)
-        .then((docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data()
-            setDisplayName(data.displayName || '')
-            setPhotoURL(data.photoURL || '')
-          }
-        })
-        .catch((error) => {
-          console.error('เกิดข้อผิดพลาดในการอ่านข้อมูลผู้ใช้จาก Firestore:', error)
-        })
+    const loadProfile = async () => {
+      if (!user) return
+
+      try {
+        const docRef = doc(db, 'users', user.uid)
+        const docSnap = await getDoc(docRef)
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data()
+          setDisplayName(data.name || '') // เปลี่ยนจาก displayName เป็น name
+          setPhotoURL(data.photo || '') // เปลี่ยนจาก photoURL เป็น photo
+          setIsEditing(false)
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error)
+      }
     }
+
+    loadProfile()
   }, [user, db])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!user) return
+    
     setIsSaving(true)
     setMessage('')
+
     try {
-      // อัปเดตโปรไฟล์ใน Firebase Auth
-      await updateProfile(user, { displayName, photoURL })
+      // อัปเดตข้อมูลใน Firebase Auth
+      await updateProfile(user, {
+        displayName: displayName,
+        photoURL: photoURL
+      })
 
-      // อัปเดตข้อมูลใน Firestore (รวมข้อมูลเดิม)
+      // อัปเดตข้อมูลใน Firestore
       const userRef = doc(db, 'users', user.uid)
-      await setDoc(userRef, { displayName, photoURL, email: user.email }, { merge: true })
+      await setDoc(userRef, {
+        name: displayName, // เปลี่ยนเป็น name
+        photo: photoURL,   // เปลี่ยนเป็น photo
+        email: user.email,
+        classroom: {
+          status: 1 // เพิ่ม status สำหรับเก็บสถานะการเป็นอาจารย์
+        }
+      }, { merge: true })
 
-      setMessage('อัปเดตโปรไฟล์สำเร็จแล้ว.')
+      setMessage('อัปเดตโปรไฟล์สำเร็จแล้ว')
       setIsEditing(false)
     } catch (error) {
-      console.error('เกิดข้อผิดพลาดในการอัปเดตโปรไฟล์:', error)
-      setMessage('อัปเดตโปรไฟล์ไม่สำเร็จ.')
+      console.error('Error updating profile:', error)
+      setMessage('เกิดข้อผิดพลาดในการอัปเดตโปรไฟล์')
     }
     setIsSaving(false)
   }

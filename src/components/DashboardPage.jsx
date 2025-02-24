@@ -638,11 +638,11 @@ function Dashboard() {
             </div>
           )}
           <div>
-            <p className="text-white font-bold">
+            <p className="text-white font-InterEN font-bold">
               {profile?.name || currentUser?.email || 'User'}
             </p>
             {currentUser && (
-              <p className="text-blue-200 text-sm">{currentUser.email}</p>
+              <p className="text-blue-200 font-InterEN text-sm">{currentUser.email}</p>
             )}
           </div>
         </div>
@@ -654,9 +654,9 @@ function Dashboard() {
           <h1 className="text-3xl font-ChakraPetchTH text-blue-900">แดชบอร์ด</h1>
           <button
             onClick={() => setShowSignOutModal(true)}
-            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+            className="bg-red-600 font-ChakraPetchTH text-white px-4 py-2 rounded hover:bg-red-700 transition"
           >
-            Sign Out
+            ออกจากระบบ
           </button>
         </div>
         <div className="bg-white rounded-lg p-6 shadow-lg">
@@ -717,7 +717,7 @@ function Dashboard() {
                                 setShowDetailEdit(false)
                                 setDropdownOpen(false)
                               }}
-                              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              className="block w-full font-ChakraPetchTH text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                             >
                               จัดการนักเรียน
                             </button>
@@ -1107,7 +1107,7 @@ function Dashboard() {
                         <div className="absolute top-10 right-2 w-32 bg-white shadow-lg rounded py-1 z-20">
                           <button
                             onClick={() => initEditClassroom(classroom)}
-                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                            className="block px-4 py-2 text-sm font-ChakraPetchTH text-gray-700 hover:bg-gray-100 w-full text-left"
                           >
                             จัดการนักเรียน
                           </button>
@@ -1116,7 +1116,7 @@ function Dashboard() {
                               handleDeleteClassroom(classroom.id)
                               setOpenDropdownId(null)
                             }}
-                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                            className="block px-4 py-2 text-sm font-ChakraPetchTH text-gray-700 hover:bg-gray-100 w-full text-left"
                           >
                             ลบห้องเรียน
                           </button>
@@ -1134,14 +1134,14 @@ function Dashboard() {
                         </div>
                       )}
                       <div className="p-4 text-center">
-                        <p className="font-semibold text-blue-900 text-xl mb-1">
+                        <p className="font-semibold font-InterEN text-blue-900 text-xl mb-1">
                           {classroom.info.name}
                         </p>
-                        <p className="text-blue-700 text-lg">
-                          Code: {classroom.info.code}
+                        <p className="text-blue-700 font-InterEN text-lg">
+                          Code : {classroom.info.code}
                         </p>
-                        <p className="text-blue-700 text-lg">
-                          Room: {classroom.info.room}
+                        <p className="text-blue-700 font-InterEN text-lg">
+                          Room : {classroom.info.room}
                         </p>
                       </div>
                     </div>
@@ -1195,7 +1195,7 @@ function Dashboard() {
               <button
                 type="button"
                 onClick={handleDeleteCheckin}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 shadow-xs transition"
+                className="bg-red-600 font-ChakraPetchTH text-white px-4 py-2 rounded hover:bg-red-700 shadow-xs transition"
               >
                 ลบบันทึกการเช็คชื่อ
               </button>
