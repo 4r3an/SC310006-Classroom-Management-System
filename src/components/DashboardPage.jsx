@@ -511,7 +511,7 @@ function Dashboard() {
         editingClassroom.id,
         'checkin',
         record.id,
-        'students'
+      'students'
       )
       const snapshot = await getDocs(studentsRef)
       const checkedIds = snapshot.docs.map((doc) => doc.id)
@@ -549,6 +549,16 @@ function Dashboard() {
       console.error('Error deleting check-in record:', error)
       alert('Failed to delete check-in record.')
     }
+  }
+
+  /**
+   * handleAddQuiz: นำผู้ใช้ไปหน้า CreateQuizPage.jsx (หรือเส้นทางอื่น) พร้อมส่ง
+   * พารามิเตอร์ classroomId และ checkinId ไปเพื่อให้ CreateQuizPage ใช้อ้างอิง
+   * จุดเก็บข้อมูลใน Firestore ได้ (question, answers ฯลฯ)
+   */
+  const handleAddQuiz = (checkinRecord) => {
+    // Navigate using the classroom id as the route parameter and include check-in id as a query parameter.
+    navigate(`/create-quiz/${editingClassroom.id}?checkinId=${checkinRecord.id}`)
   }
 
   return (
@@ -942,6 +952,14 @@ function Dashboard() {
                                           className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition"
                                         >
                                           Details
+                                        </button>
+                                        {/* ปุ่ม Add Quiz: ไปยังหน้า CreateQuizPage พร้อมส่ง param */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddQuiz(record)}
+                                          className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition m-2"
+                                        >
+                                          Add Quiz
                                         </button>
                                       </td>
                                     </tr>
