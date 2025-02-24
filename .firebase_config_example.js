@@ -1,4 +1,4 @@
-// Import the functions you need from the SDKs you need
+// Import
 import { initializeApp } from "firebase/app"
 import { getAuth } from "firebase/auth"
 // TODO: Add SDKs for Firebase products that you want to use
@@ -6,13 +6,13 @@ import { getAuth } from "firebase/auth"
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCOziU7OX4VpiNJivHsf5SlMxSMr8BGKJs",
-  authDomain: "web2568-4a3e5.firebaseapp.com",
-  projectId: "web2568-4a3e5",
-  storageBucket: "web2568-4a3e5.firebasestorage.app",
-  messagingSenderId: "609239509406",
-  appId: "1:609239509406:web:c21d960c8375eaabb0ce8f",
-  measurementId: "G-XCB6G3RLB9"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_AUTH_DOMAIN",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID",
+  measurementId: "YOUR_MEASUREMENT_ID"
 };
 
 
