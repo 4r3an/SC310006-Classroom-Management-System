@@ -366,14 +366,14 @@ function Dashboard() {
         prev.map((c) =>
           c.id === editingClassroom.id
             ? {
-                ...c,
-                info: {
-                  code: editCode,
-                  name: editName,
-                  photo: editPhoto,
-                  room: editRoom
-                }
+              ...c,
+              info: {
+                code: editCode,
+                name: editName,
+                photo: editPhoto,
+                room: editRoom
               }
+            }
             : c
         )
       )
@@ -580,6 +580,15 @@ function Dashboard() {
                 className="hover:text-blue-300 transition font-ChakraPetchTH"
               >
                 Create Classroom
+              </button>
+            </li>
+
+            <li>
+              <button
+                onClick={() => navigate('/student-checkin')}
+                className="hover:text-blue-300 transition font-ChakraPetchTH"
+              >
+                students checkin
               </button>
             </li>
           </ul>
@@ -875,11 +884,10 @@ function Dashboard() {
                                                 type="button"
                                                 onClick={() => handleStudentCheckin(student.id)}
                                                 disabled={student.checked}
-                                                className={`px-3 py-1 rounded ${
-                                                  student.checked
+                                                className={`px-3 py-1 rounded ${student.checked
                                                     ? 'bg-gray-400'
                                                     : 'bg-green-600 hover:bg-green-700'
-                                                } text-white transition`}
+                                                  } text-white transition`}
                                               >
                                                 Check In
                                               </button>
@@ -932,8 +940,8 @@ function Dashboard() {
                                         {record.status === 0
                                           ? 'Not Started'
                                           : record.status === 1
-                                          ? 'In Progress'
-                                          : 'Finished'}
+                                            ? 'In Progress'
+                                            : 'Finished'}
                                       </td>
                                       <td className="border p-2">
                                         <button
