@@ -89,6 +89,7 @@ function Login() {
             />
             <span className="group-hover:text-blue-600">เข้าสู่ระบบด้วย Google</span>
           </button>
+          <h3 className='p-6 text-red-500 font-ChakraPetchTH'>ลงทะเบียนครั้งแรกสำหรับอาจารย์ โปรดติดต่อแอดมิน</h3>
         </div>
       </div>
     </div>
