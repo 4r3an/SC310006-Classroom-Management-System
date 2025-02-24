@@ -253,29 +253,31 @@ function CreateQuizPage() {
     }
   }
 
-  // sign out
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth)
-      navigate('/')
-    } catch (error) {
-      console.error('Sign out error:', error)
+  /**
+     * handleConfirmSignOut: Signs out the user and navigates back to the home page.
+     */
+    const handleConfirmSignOut = async () => {
+      try {
+        await signOut(auth)
+        navigate('/')
+      } catch (error) {
+        console.error('Error signing out:', error)
+      }
     }
-  }
 
   return (
     <div className="flex h-screen bg-blue-50 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-64 bg-blue-500 text-white p-6 flex flex-col justify-between">
         <div>
-          <div className="text-4xl --font-InterEN mb-8">Create Quiz</div>
+          <div className="text-4xl font-InterEN mb-8">Create Quiz</div>
           <ul className="space-y-4">
             <li>
               <button
                 onClick={() => navigate('/dashboard')}
                 className="hover:text-blue-300 transition font-ChakraPetchTH"
               >
-                Back to Dashboard
+                กลับไปหน้าหลัก (แดชบอร์ด)
               </button>
             </li>
           </ul>
@@ -309,7 +311,7 @@ function CreateQuizPage() {
       {/* Main Content */}
       <main className="flex-1 bg-blue-50 p-8 animate-fadeIn overflow-y-auto relative">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-ChakraPetchTH text-blue-900">Create / Manage Quiz</h1>
+          <h1 className="text-3xl font-ChakraPetchTH text-blue-900">สร้าง/จัดการ ควิซ</h1>
           <button
             onClick={() => setShowSignOutModal(true)}
             className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
@@ -320,7 +322,7 @@ function CreateQuizPage() {
 
         <div className="bg-white rounded-lg p-6 shadow-lg">
           <h2 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
-            Classroom ID: {classroomId || 'N/A'} | Checkin ID: {checkinId || 'N/A'}
+            รหัสห้องเรียน : {classroomId || 'N/A'} | รหัสเช็คชื่อ : {checkinId || 'N/A'}
           </h2>
 
           {/* ฟอร์มเพิ่ม/แก้ไข question */}
@@ -330,7 +332,7 @@ function CreateQuizPage() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-blue-700 mb-1">Question No.</label>
+                <label className="block text-blue-700 mb-1">คำถามข้อที่</label>
                 <input
                   type="number"
                   className="w-full p-2 border border-gray-300 rounded"
@@ -374,7 +376,7 @@ function CreateQuizPage() {
                   }}
                   className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 transition"
                 >
-                  Cancel
+                  ยกเลิก
                 </button>
               )}
             </div>
@@ -501,27 +503,64 @@ function CreateQuizPage() {
 
       {/* Modal: Sign Out Confirmation */}
       {showSignOutModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-600 bg-opacity-30 z-50">
-          <div className="relative flex flex-col p-8 border-2 border-dashed border-blue-400 rounded-xl shadow-xl bg-blue-50 w-11/12 md:w-1/2">
-            <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">Confirm Sign Out</h3>
-            <p className="text-blue-700 font-ChakraPetchTH mb-4">
-              Are you sure you want to sign out?
-            </p>
-            <div className="flex justify-end mt-4 space-x-4">
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 shadow-xs transition"
-              >
-                Yes, Sign Out
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSignOutModal(false)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 shadow-xs transition"
-              >
-                Cancel
-              </button>
+        <div className="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true"></div>
+          <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <svg
+                        className="h-6 w-6 text-red-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth="1.5"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                      <h3
+                        className="text-base font-semibold text-gray-900"
+                        id="modal-title"
+                      >
+                        ยืนยันการออกจากระบบ
+                      </h3>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">
+                          คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบ?
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSignOutModal(false)
+                      handleConfirmSignOut()
+                    }}
+                    className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-xs hover:bg-red-500 sm:ml-3 sm:w-auto"
+                  >
+                    ใช่, ออกจากระบบ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSignOutModal(false)}
+                    className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
