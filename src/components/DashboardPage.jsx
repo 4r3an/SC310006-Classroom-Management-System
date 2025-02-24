@@ -165,6 +165,29 @@ function Dashboard() {
     }
   }, [editingClassroom, db])
 
+  useEffect(() => {
+    const loadCheckedStatus = async () => {
+      if (!editingClassroom || !currentCheckinRecord) return
+      const studentsRef = collection(
+        db,
+        'classroom',
+        editingClassroom.id,
+        'checkin',
+        currentCheckinRecord.id,
+        'students'
+      )
+      const snapshot = await getDocs(studentsRef)
+      const checkedIds = snapshot.docs.map((doc) => doc.id) // IDs of students who checked in
+
+      const updated = editStudents.map((s) =>
+        checkedIds.includes(s.id) ? { ...s, checked: true } : { ...s, checked: false }
+      )
+      setEditStudents(updated)
+    }
+
+    loadCheckedStatus()
+  }, [editingClassroom, currentCheckinRecord, db])
+
   const handleAddStudent = async () => {
     if (!selectedStudent) return
 
@@ -322,14 +345,47 @@ function Dashboard() {
     }
   }
 
-  const handleStudentCheckin = (studentId) => {
-    // Update the student data to mark them as checked (locally)
-    setEditStudents(editStudents.map(student => {
-      if(student.id === studentId) {
-        return { ...student, checked: true }
-      }
-      return student
-    }))
+  const handleStudentCheckin = async (studentId) => {
+    try {
+      // Find the student data
+      const student = editStudents.find(s => s.id === studentId)
+      if (!student) return
+
+      const dateString = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })
+
+      // Store in 'students' subcollection
+      await setDoc(
+        doc(db, 'classroom', editingClassroom.id, 'checkin', currentCheckinRecord.id, 'students', studentId),
+        {
+          stdid: student.stdid,
+          name: student.name,
+          remark: '',
+          date: dateString
+        }
+      )
+
+      // Store in 'scores' subcollection
+      await setDoc(
+        doc(db, 'classroom', editingClassroom.id, 'checkin', currentCheckinRecord.id, 'scores', student.stdid),
+        {
+          uid: studentId,
+          stdid: student.stdid,
+          name: student.name,
+          remark: '',
+          dates: dateString,
+          score: 1,
+          status: 1
+        }
+      )
+
+      // Update local state
+      setEditStudents((prev) =>
+        prev.map((s) => (s.id === studentId ? { ...s, checked: true } : s))
+      )
+    } catch (error) {
+      console.error('Error storing student check-in:', error)
+      alert('ไม่สามารถเช็คชื่อนักเรียนได้')
+    }
   }
 
   const handleFinishCheckin = async () => {
@@ -358,21 +414,27 @@ function Dashboard() {
   }
 
   const handleViewCheckinDetails = async (record) => {
-    try {
-      // ดึงข้อมูลนักเรียนใน checkin record นั้น ๆ
-      const studentsRef = collection(db, 'classroom', editingClassroom.id, 'checkin', record.id, 'students')
-      const querySnapshot = await getDocs(studentsRef)
-      const studentList = []
-      querySnapshot.forEach((docSnap) => {
-        studentList.push({ id: docSnap.id, ...docSnap.data() })
-      })
-      // รวมข้อมูลนักเรียนเข้าไปใน record
-      setSelectedCheckinForDetails({ ...record, students: studentList })
-      setShowCheckinDetailsModal(true)
-    } catch (error) {
-      console.error('Error fetching check-in students:', error)
-      alert('เกิดข้อผิดพลาดในการดึงข้อมูลนักเรียนในเช็คชื่อ')
-    }
+    setSelectedCheckinForDetails(record)
+    setShowCheckinDetailsModal(true)
+  
+    const studentsRef = collection(
+      db,
+      'classroom',
+      editingClassroom.id,
+      'checkin',
+      record.id,
+      'students'
+    )
+    const snapshot = await getDocs(studentsRef)
+    const checkedIds = snapshot.docs.map((doc) => doc.id)
+  
+    setEditStudents((prev) =>
+      prev.map((s) =>
+        checkedIds.includes(s.id)
+          ? { ...s, checked: true }
+          : { ...s, checked: false }
+      )
+    )
   }
 
   return (
@@ -879,8 +941,6 @@ function Dashboard() {
             </div>
           </div>
         </div>
-
-        {/* ไม่ใช้ modal แสดง inline จนกว่าจะออกจาก manageMode */}
       </main>
       
       {/* Modal สำหรับดูรายละเอียดการเช็คชื่อ */}
