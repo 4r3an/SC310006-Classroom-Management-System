@@ -5,6 +5,8 @@ import DashboardPage from './components/DashboardPage'
 import EditProfilePage from './components/EditProfilePage'
 import EditClassroom from './components/EditClassroom'
 import StudentDashboardPage from './components/StudentDashboardPage'
+import CreateQuizPage from './components/CreateQuizPage'
+import StudentClassroomDetailPage from './components/StudentClassroomDetailPage'
 
 function App() {
   return (
@@ -15,6 +17,8 @@ function App() {
         <Route path="/student-dashboard" element={<StudentDashboardPage />} />
         <Route path="/edit-profile" element={<EditProfilePage />} />
         <Route path="/edit-classroom/:cid" element={<EditClassroom />} />
+        <Route path="/create-quiz/:classroomId" element={<CreateQuizPage />} />
+        <Route path="/student-classroom/:classroomId" element={<StudentClassroomDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
