@@ -50,7 +50,7 @@
 ### 4. เปิด Terminal ภายใน VSCode
 
 ### 5. พิมพ์คำสั่งดังนี้
-```npm install uuid tailwindcss @tailwindcss/vite react-router-dom react react-dom firebase```
+```npm install uuid tailwindcss @tailwindcss/vite react-router-dom react react-dom firebase qrcode.react```
 
 ### 6. แก้ไขชื่อไฟล์ .firebase_config_example.js
 แก้ไขชื่อไฟล์จาก ```.firebase_config_example.js``` ให้เป็น ```firebase_config.js```

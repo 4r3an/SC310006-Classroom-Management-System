@@ -16,6 +16,7 @@ import {
   addDoc
 } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
+import { QRCodeSVG } from 'qrcode.react' // Add this import for QR code generation
 
 /**
  * Dashboard component provides the main classroom management UI.
@@ -77,6 +78,10 @@ function Dashboard() {
   // State: check-in details modal
   const [showCheckinDetailsModal, setShowCheckinDetailsModal] = useState(false)
   const [selectedCheckinForDetails, setSelectedCheckinForDetails] = useState(null)
+
+  // State: for QR code generation
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [qrClassroom, setQRClassroom] = useState(null)
 
   /**
    * useEffect: Fetch user profile if currentUser exists.
@@ -218,6 +223,10 @@ function Dashboard() {
 
   /**
    * handleAddStudent: Adds a selected student (from availableUsers) to the editing classroom.
+   * Prevents adding duplicate students and updates both Firestore and local state.
+   * 
+   * เพิ่มนักเรียนที่เลือก (จาก availableUsers) เข้าไปในห้องเรียนที่กำลังแก้ไข
+   * ป้องกันการเพิ่มนักเรียนซ้ำและอัปเดตทั้งใน Firestore และ state ในแอป
    */
   const handleAddStudent = async () => {
     if (!selectedStudent) return
@@ -253,6 +262,10 @@ function Dashboard() {
 
   /**
    * handleConfirmSignOut: Signs out the user and navigates back to the home page.
+   * Terminates the current session and redirects to the landing page.
+   * 
+   * ยืนยันการออกจากระบบและนำผู้ใช้กลับไปยังหน้าแรก
+   * สิ้นสุดเซสชันปัจจุบันและเปลี่ยนเส้นทางไปยังหน้าแรก
    */
   const handleConfirmSignOut = async () => {
     try {
@@ -265,6 +278,12 @@ function Dashboard() {
 
   /**
    * toggleDropdown: Toggles the classroom card dropdown menu.
+   * Shows or hides the dropdown menu for a specific classroom card.
+   * @param {string} id - ID of the classroom to toggle dropdown for
+   * 
+   * สลับสถานะเมนูดรอปดาวน์ของการ์ดห้องเรียน
+   * แสดงหรือซ่อนเมนูดรอปดาวน์สำหรับการ์ดห้องเรียนที่ระบุ
+   * @param {string} id - รหัสห้องเรียนที่ต้องการสลับสถานะดรอปดาวน์
    */
   const toggleDropdown = (id) => {
     setOpenDropdownId(prev => (prev === id ? null : id))
@@ -272,6 +291,12 @@ function Dashboard() {
 
   /**
    * handleDeleteClassroom: Deletes a classroom by ID if user confirms.
+   * Removes the classroom from Firestore and updates local state.
+   * @param {string} classroomId - ID of the classroom to delete
+   * 
+   * ลบห้องเรียนตามรหัสหากผู้ใช้ยืนยัน
+   * ลบห้องเรียนออกจาก Firestore และอัปเดต state ในแอป
+   * @param {string} classroomId - รหัสห้องเรียนที่ต้องการลบ
    */
   const handleDeleteClassroom = async (classroomId) => {
     if (!window.confirm('Are you sure you want to delete this classroom?')) return
@@ -285,6 +310,12 @@ function Dashboard() {
 
   /**
    * handleCreateClassroom: Creates a new classroom document in Firestore.
+   * Generates a unique ID and stores classroom details in the database.
+   * @param {Event} e - Form submission event
+   * 
+   * สร้างเอกสารห้องเรียนใหม่ใน Firestore
+   * สร้างรหัสเฉพาะและเก็บรายละเอียดห้องเรียนในฐานข้อมูล
+   * @param {Event} e - อีเวนต์การส่งแบบฟอร์ม
    */
   const handleCreateClassroom = async (e) => {
     e.preventDefault()
@@ -330,6 +361,12 @@ function Dashboard() {
 
   /**
    * initEditClassroom: Initializes edit mode for a selected classroom.
+   * Sets up the editing state with classroom details and resets related states.
+   * @param {Object} classroom - Classroom object to edit
+   * 
+   * เริ่มต้นโหมดแก้ไขสำหรับห้องเรียนที่เลือก
+   * ตั้งค่าสถานะการแก้ไขด้วยรายละเอียดห้องเรียนและรีเซ็ตสถานะที่เกี่ยวข้อง
+   * @param {Object} classroom - อ็อบเจกต์ห้องเรียนที่ต้องการแก้ไข
    */
   const initEditClassroom = (classroom) => {
     setManageMode(true)
@@ -347,6 +384,12 @@ function Dashboard() {
 
   /**
    * handleUpdateClassroom: Updates an existing classroom's info fields.
+   * Modifies classroom details in Firestore and updates local state.
+   * @param {Event} e - Form submission event
+   * 
+   * อัปเดตข้อมูลของห้องเรียนที่มีอยู่
+   * แก้ไขรายละเอียดห้องเรียนใน Firestore และอัปเดต state ในแอป
+   * @param {Event} e - อีเวนต์การส่งแบบฟอร์ม
    */
   const handleUpdateClassroom = async (e) => {
     e.preventDefault()
@@ -388,6 +431,10 @@ function Dashboard() {
 
   /**
    * handleCreateCheckin: Creates a new check-in record in the current editingClassroom.
+   * Adds a check-in document with code, date, and status to Firestore.
+   * 
+   * สร้างบันทึกการเช็คชื่อใหม่ในห้องเรียนที่กำลังแก้ไขอยู่
+   * เพิ่มเอกสารการเช็คชื่อพร้อมรหัส วันที่ และสถานะลงใน Firestore
    */
   const handleCreateCheckin = async () => {
     if (!newCheckinCode || !newCheckinDate) {
@@ -419,6 +466,12 @@ function Dashboard() {
 
   /**
    * handleStudentCheckin: Marks a student as checked-in for the current check-in record.
+   * Records the check-in in both 'students' and 'scores' subcollections.
+   * @param {string} studentId - ID of the student to mark as checked in
+   * 
+   * ทำเครื่องหมายนักเรียนว่าเช็คชื่อสำหรับบันทึกการเช็คชื่อปัจจุบัน
+   * บันทึกการเช็คชื่อในคอลเลกชันย่อยทั้ง 'students' และ 'scores'
+   * @param {string} studentId - รหัสนักเรียนที่จะทำเครื่องหมายว่าเช็คชื่อแล้ว
    */
   const handleStudentCheckin = async (studentId) => {
     try {
@@ -464,6 +517,10 @@ function Dashboard() {
 
   /**
    * handleFinishCheckin: Sets the current check-in record status to "finished" (2).
+   * Finalizes the check-in process and refreshes check-in records.
+   * 
+   * ตั้งค่าสถานะบันทึกการเช็คชื่อปัจจุบันเป็น "เสร็จสิ้น" (2)
+   * จบกระบวนการเช็คชื่อและรีเฟรชรายการบันทึกการเช็คชื่อ
    */
   const handleFinishCheckin = async () => {
     if (!currentCheckinRecord) return
@@ -499,6 +556,12 @@ function Dashboard() {
 
   /**
    * handleViewCheckinDetails: Displays check-in details in a modal for a specific record.
+   * Loads and shows which students were checked in for the selected record.
+   * @param {Object} record - Check-in record to view details for
+   * 
+   * แสดงรายละเอียดการเช็คชื่อในโมดัลสำหรับบันทึกที่ระบุ
+   * โหลดและแสดงว่านักเรียนคนใดได้รับการเช็คชื่อสำหรับบันทึกที่เลือก
+   * @param {Object} record - บันทึกการเช็คชื่อที่ต้องการดูรายละเอียด
    */
   const handleViewCheckinDetails = async (record) => {
     setSelectedCheckinForDetails(record)
@@ -530,6 +593,10 @@ function Dashboard() {
 
   /**
    * handleDeleteCheckin: Deletes a specific check-in record after confirmation.
+   * Removes the check-in document from Firestore and updates the UI.
+   * 
+   * ลบบันทึกการเช็คชื่อที่ระบุหลังจากได้รับการยืนยัน
+   * ลบเอกสารการเช็คชื่อออกจาก Firestore และอัปเดต UI
    */
   const handleDeleteCheckin = async () => {
     if (!editingClassroom || !selectedCheckinForDetails) return
@@ -552,9 +619,13 @@ function Dashboard() {
   }
 
   /**
-   * handleAddQuiz: นำผู้ใช้ไปหน้า CreateQuizPage.jsx (หรือเส้นทางอื่น) พร้อมส่ง
-   * พารามิเตอร์ classroomId และ checkinId ไปเพื่อให้ CreateQuizPage ใช้อ้างอิง
-   * จุดเก็บข้อมูลใน Firestore ได้ (question, answers ฯลฯ)
+   * handleAddQuiz: Navigates to the CreateQuizPage with classroom and check-in IDs.
+   * Passes parameters to identify the relevant Firestore document path.
+   * @param {Object} checkinRecord - Check-in record to create quiz for
+   * 
+   * นำทางไปยังหน้า CreateQuizPage พร้อมรหัสห้องเรียนและรหัสการเช็คชื่อ
+   * ส่งพารามิเตอร์เพื่อระบุเส้นทางเอกสาร Firestore ที่เกี่ยวข้อง
+   * @param {Object} checkinRecord - บันทึกการเช็คชื่อที่ต้องการสร้างควิซ
    */
   const handleAddQuiz = (checkinRecord) => {
     // Navigate using the classroom id as the route parameter and include check-in id as a query parameter.
@@ -563,6 +634,12 @@ function Dashboard() {
 
   /**
    * handleUndoCheckin: Unmarks a student as checked-in for the current check-in record.
+   * Removes check-in data from both 'students' and 'scores' subcollections.
+   * @param {string} studentId - ID of the student to unmark
+   * 
+   * ยกเลิกการทำเครื่องหมายนักเรียนว่าเช็คชื่อสำหรับบันทึกการเช็คชื่อปัจจุบัน
+   * ลบข้อมูลการเช็คชื่อออกจากคอลเลกชันย่อยทั้ง 'students' และ 'scores'
+   * @param {string} studentId - รหัสนักเรียนที่ต้องการยกเลิกการทำเครื่องหมาย
    */
   const handleUndoCheckin = async (studentId) => {
     try {
@@ -587,6 +664,21 @@ function Dashboard() {
       console.error('Error undoing student check-in:', error)
       alert('Failed to undo check-in for student.')
     }
+  }
+
+  /**
+   * handleGenerateQR: Generates a QR code for classroom registration from the classroom ID.
+   * Sets up the QR modal with the classroom information to display the QR code.
+   * @param {Object} classroom - The classroom object to generate QR code for
+   * 
+   * สร้าง QR code สำหรับการลงทะเบียนห้องเรียนจากรหัสห้องเรียน
+   * ตั้งค่าโมดัล QR ด้วยข้อมูลห้องเรียนเพื่อแสดง QR code
+   * @param {Object} classroom - อ็อบเจกต์ห้องเรียนที่ต้องการสร้าง QR code
+   */
+  const handleGenerateQR = (classroom) => {
+    setQRClassroom(classroom)
+    setShowQRModal(true)
+    setOpenDropdownId(null) // Close any open dropdown
   }
 
   return (
@@ -1104,12 +1196,18 @@ function Dashboard() {
                         </svg>
                       </button>
                       {openDropdownId === classroom.id && (
-                        <div className="absolute top-10 right-2 w-32 bg-white shadow-lg rounded py-1 z-20">
+                        <div className="absolute top-10 right-2 w-36 bg-white shadow-lg rounded py-1 z-20">
                           <button
                             onClick={() => initEditClassroom(classroom)}
                             className="block px-4 py-2 text-sm font-ChakraPetchTH text-gray-700 hover:bg-gray-100 w-full text-left"
                           >
                             จัดการนักเรียน
+                          </button>
+                          <button
+                            onClick={() => handleGenerateQR(classroom)}
+                            className="block px-4 py-2 text-sm font-ChakraPetchTH text-gray-700 hover:bg-gray-100 w-full text-left"
+                          >
+                            สร้าง QR Code
                           </button>
                           <button
                             onClick={() => {
@@ -1270,6 +1368,84 @@ function Dashboard() {
                     ยกเลิก
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: QR Code for classroom registration */}
+      {showQRModal && qrClassroom && (
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-600 bg-opacity-50 z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl w-11/12 md:w-96 relative">
+            <button 
+              onClick={() => setShowQRModal(false)} 
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            <h3 className="text-xl font-ChakraPetchTH text-center mb-4 text-blue-900">
+              QR Code ลงทะเบียนห้องเรียน
+            </h3>
+            
+            <div className="flex flex-col items-center">
+              <div className="p-4 bg-white rounded-lg border-2 border-blue-200 shadow-inner">
+                <QRCodeSVG 
+                  id="classroom-qr-code"
+                  value={`https://4r3an.github.io/SC310006-Classroom-Management-System/#/register-classroom/${qrClassroom.id}`}
+                  size={200}
+                  bgColor={"#ffffff"}
+                  fgColor={"#000000"}
+                  level={"H"}
+                  includeMargin={true}
+                />
+              </div>
+              
+              <div className="mt-4 text-center">
+                <p className="font-ChakraPetchTH text-lg font-bold text-blue-900">
+                  {qrClassroom.info.name}
+                </p>
+                <p className="font-InterEN text-gray-600">
+                  Code: {qrClassroom.info.code}
+                </p>
+                <p className="font-InterEN text-gray-600">
+                  Room: {qrClassroom.info.room}
+                </p>
+              </div>
+              
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowQRModal(false)}
+                  className="bg-blue-600 text-white px-6 py-2 m-2 rounded-lg hover:bg-blue-700 transition font-ChakraPetchTH"
+                >
+                  ปิด
+                </button>
+                <button
+                  onClick={() => {
+                    // Create a canvas from the SVG and convert to image
+                    const svgElement = document.getElementById('classroom-qr-code');
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const svgData = new XMLSerializer().serializeToString(svgElement);
+                    const img = new Image();
+                    img.onload = () => {
+                      canvas.width = img.width;
+                      canvas.height = img.height;
+                      ctx.drawImage(img, 0, 0);
+                      const a = document.createElement('a');
+                      a.download = `classroom-${qrClassroom.info.code}.png`;
+                      a.href = canvas.toDataURL('image/png');
+                      a.click();
+                    };
+                    img.src = `data:image/svg+xml;base64,${btoa(svgData)}`;
+                  }}
+                  className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition font-ChakraPetchTH mr-2"
+                >
+                  ดาวน์โหลด QR
+                </button>
               </div>
             </div>
           </div>
