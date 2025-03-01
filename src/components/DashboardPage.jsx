@@ -941,30 +941,41 @@ const filteredStudents = getFilteredStudents()
             </li>
           </ul>
         </div>
-        <div
-          className="flex items-center pt-6 border-t border-blue-700 cursor-pointer"
-          onClick={() => navigate('/edit-profile')}
-        >
-          {profile && profile.photo ? (
-            <img
-              src={profile.photo}
-              alt="Profile"
-              className="w-12 h-12 rounded-full mr-4"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center mr-4">
-              <span className="text-lg text-white">N/A</span>
-            </div>
-          )}
-          <div>
-            <p className="text-white font-InterEN font-bold">
-              {profile?.name || currentUser?.email || 'User'}
-            </p>
-            {currentUser && (
-              <p className="text-blue-200 font-InterEN text-sm">{currentUser.email}</p>
-            )}
-          </div>
-        </div>
+        <div className="flex items-center pt-6 border-t border-blue-400/30 cursor-pointer group transition-all duration-300 rounded-lg p-2 hover:bg-blue-600/30"
+  onClick={() => navigate('/edit-profile')}
+>
+  <div className="relative flex-shrink-0">
+    {profile && profile.photo ? (
+      <img
+        src={profile.photo}
+        alt="Profile"
+        className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover group-hover:ring-2 group-hover:ring-blue-300 transition-all"
+      />
+    ) : (
+      <div className="w-12 h-12 rounded-full bg-blue-700 flex items-center justify-center border-2 border-white shadow-md group-hover:bg-blue-800 transition-all">
+        <span className="text-lg text-white font-medium">
+          {profile?.name ? profile.name.charAt(0).toUpperCase() : currentUser?.email?.charAt(0).toUpperCase() || 'U'}
+        </span>
+      </div>
+    )}
+    <div className="absolute -bottom-1 -right-1 bg-blue-300 rounded-full p-1 border border-white transform scale-0 group-hover:scale-100 transition-transform duration-200">
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-blue-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+      </svg>
+    </div>
+  </div>
+  <div className="ml-4">
+    <p className="text-white font-InterEN font-bold group-hover:text-blue-200 transition-colors">
+      {profile?.name || currentUser?.email || 'User'}
+    </p>
+    {currentUser && (
+      <p className="text-blue-200 font-InterEN text-sm group-hover:text-blue-300 transition-colors">
+        {currentUser.email}
+      </p>
+    )}
+  </div>
+</div>
+
       </aside>
 
       {/* Main Content */}
