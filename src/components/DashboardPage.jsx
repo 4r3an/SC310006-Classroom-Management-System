@@ -681,6 +681,38 @@ function Dashboard() {
     setOpenDropdownId(null) // Close any open dropdown
   }
 
+  /**
+ * handleToggleStudentVerification: Toggles a student's verification status.
+ * Updates the student's status between verified (1) and unverified (0).
+ * 
+ * สลับสถานะการยืนยันของนักเรียน
+ * อัปเดตสถานะของนักเรียนระหว่างยืนยันแล้ว (1) และยังไม่ได้ยืนยัน (0)
+ * @param {string} studentId - รหัสนักเรียนที่ต้องการสลับสถานะการยืนยัน
+ */
+const handleToggleStudentVerification = async (studentId) => {
+  try {
+    const student = editStudents.find(s => s.id === studentId);
+    if (!student) return;
+    
+    // Toggle status between 0 and 1
+    const newStatus = student.status === 0 ? 1 : 0;
+    
+    // Update in Firestore
+    const studentRef = doc(db, 'classroom', editingClassroom.id, 'students', studentId);
+    await updateDoc(studentRef, {
+      status: newStatus
+    });
+    
+    // Update local state
+    setEditStudents(prev => 
+      prev.map(s => s.id === studentId ? {...s, status: newStatus} : s)
+    );
+  } catch (error) {
+    console.error('Error toggling student verification:', error);
+    alert('เกิดข้อผิดพลาดในการอัปเดตสถานะนักเรียน');
+  }
+};
+
   return (
     <div className="flex h-screen bg-blue-50 overflow-hidden">
       {/* Sidebar */}
@@ -891,6 +923,7 @@ function Dashboard() {
                                     <th className="border p-2 text-left font-ChakraPetchTH">รหัสนักเรียน</th>
                                     <th className="border p-2 text-left font-ChakraPetchTH">ชื่อ</th>
                                     <th className="border p-2 text-left font-ChakraPetchTH">สถานะ</th>
+                                    <th className="border p-2 text-left font-ChakraPetchTH">การปฏิบัติ</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -900,6 +933,18 @@ function Dashboard() {
                                       <td className="border p-2">{student.name}</td>
                                       <td className="border p-2">
                                         {student.status === 0 ? 'ยังไม่ตรวจสอบ' : 'ตรวจสอบแล้ว'}
+                                      </td>
+                                      <td className="border p-2">
+                                        <button
+                                          onClick={() => handleToggleStudentVerification(student.id)}
+                                          className={`px-3 py-1 rounded ${
+                                            student.status === 1 
+                                              ? 'bg-yellow-500 hover:bg-yellow-600' 
+                                              : 'bg-green-600 hover:bg-green-700'
+                                          } text-white transition`}
+                                        >
+                                          {student.status === 1 ? 'ยกเลิกการยืนยัน' : 'ยืนยันนักเรียน'}
+                                        </button>
                                       </td>
                                     </tr>
                                   ))}

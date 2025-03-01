@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { getAuth } from 'firebase/auth'
 import {
   getFirestore,
@@ -13,12 +13,19 @@ import {
 } from 'firebase/firestore'
 import { app } from '../../firebase_config'
 import { useNavigate } from 'react-router-dom'
+import { Html5QrcodeScanner } from "html5-qrcode";
 
 function StudentDashboard() {
   const auth = getAuth(app)
   const db = getFirestore(app)
   const currentUser = auth.currentUser
   const navigate = useNavigate()
+
+  // Add this at the beginning of StudentDashboard function to check authentication
+  useEffect(() => {
+    console.log("Current user:", currentUser);
+    console.log("User is authenticated:", !!currentUser);
+  }, [currentUser]);
 
   // รายการห้องเรียนที่นักเรียนลงทะเบียน
   const [myClassrooms, setMyClassrooms] = useState([])
@@ -34,6 +41,13 @@ function StudentDashboard() {
 
   // Add this near the top of the StudentDashboard component, with other state declarations
   const [showSignOutModal, setShowSignOutModal] = useState(false)
+
+  // Add these new states for classroom registration
+  const [showRegisterClassroomModal, setShowRegisterClassroomModal] = useState(false)
+  const [registerClassroomId, setRegisterClassroomId] = useState('')
+  const [registerMessage, setRegisterMessage] = useState({ type: '', text: '' })
+
+  const qrScannerRef = useRef(null);
 
   useEffect(() => {
     if (!currentUser) {
@@ -190,6 +204,146 @@ function StudentDashboard() {
     }
   }
 
+  // Add this function to handle classroom registration
+  /**
+   * handleRegisterClassroom: Registers a student in a classroom using the classroom ID.
+   * Adds the student to the classroom's students collection in Firestore.
+   * 
+   * ลงทะเบียนนักเรียนในห้องเรียนโดยใช้รหัสห้องเรียน
+   * เพิ่มนักเรียนเข้าไปในคอลเลกชัน students ของห้องเรียนใน Firestore
+   */
+  const handleRegisterClassroom = async (e) => {
+    e.preventDefault()
+    
+    if (!registerClassroomId.trim()) {
+      setRegisterMessage({ type: 'error', text: 'กรุณาใส่รหัสห้องเรียน' })
+      return
+    }
+    
+    try {
+      // Check if classroom exists
+      const classroomRef = doc(db, 'classroom', registerClassroomId)
+      const classroomSnap = await getDoc(classroomRef)
+      
+      if (!classroomSnap.exists()) {
+        setRegisterMessage({ type: 'error', text: 'ไม่พบห้องเรียนที่ระบุ กรุณาตรวจสอบรหัสอีกครั้ง' })
+        return
+      }
+      
+      // Check if student already registered in this classroom
+      const studentRef = doc(db, 'classroom', registerClassroomId, 'students', currentUser.uid)
+      const studentSnap = await getDoc(studentRef)
+      
+      if (studentSnap.exists()) {
+        setRegisterMessage({ type: 'error', text: 'คุณได้ลงทะเบียนในห้องเรียนนี้แล้ว' })
+        return
+      }
+      
+      // Add student to classroom
+      await setDoc(studentRef, {
+        stdid: currentUser.uid,
+        name: profile?.name || currentUser.email,
+        status: 0 // Pending status
+      })
+      
+      setRegisterMessage({ type: 'success', text: 'ลงทะเบียนสำเร็จ! รอการยืนยันจากอาจารย์' })
+      
+      // Refresh classrooms list after successful registration
+      const studentsRef = query(
+        collectionGroup(db, 'students'),
+        where('stdid', '==', currentUser.uid)
+      )
+      const snapshot = await getDocs(studentsRef)
+      const parentDocPromises = []
+      snapshot.forEach((docSnap) => {
+        const classroomDocRef = docSnap.ref.parent.parent
+        if (classroomDocRef) {
+          parentDocPromises.push(getDoc(classroomDocRef))
+        }
+      })
+      const classroomDocs = await Promise.all(parentDocPromises)
+      const classroomsData = classroomDocs.map((c) => ({
+        id: c.id,
+        ...c.data(),
+      }))
+      setMyClassrooms(classroomsData)
+      
+      // Auto-close modal after successful registration
+      setTimeout(() => {
+        setShowRegisterClassroomModal(false)
+        setRegisterClassroomId('')
+        setRegisterMessage({ type: '', text: '' })
+      }, 2000)
+      
+    } catch (error) {
+      console.error('Error registering for classroom:', error)
+      setRegisterMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการลงทะเบียน โปรดลองอีกครั้ง' })
+    }
+  }
+  
+  /**
+   * handleQRCodeScanned: Processes classroom registration via QR code scan.
+   * Extracts classroom ID from URL and registers the student.
+   * 
+   * ประมวลผลการลงทะเบียนห้องเรียนผ่านการสแกน QR code
+   * แยกรหัสห้องเรียนจาก URL และลงทะเบียนนักเรียน
+   * @param {string} qrData - URL data from QR code scan
+   */
+  const handleQRCodeScanned = (qrData) => {
+    try {
+      // Extract classroom ID from URL pattern
+      // Expected format: https://4r3an.github.io/SC310006-Classroom-Management-System/#/register-classroom/{classroomId}
+      const urlPattern = /\/register-classroom\/([^/?\s]+)/
+      const match = qrData.match(urlPattern)
+      
+      if (match && match[1]) {
+        const classroomId = match[1]
+        setRegisterClassroomId(classroomId)
+        // Automatically submit after QR scan
+        handleRegisterClassroom({ preventDefault: () => {} })
+      } else {
+        setRegisterMessage({ type: 'error', text: 'รูปแบบ QR Code ไม่ถูกต้อง' })
+      }
+    } catch (error) {
+      console.error('Error processing QR code:', error)
+      setRegisterMessage({ type: 'error', text: 'ไม่สามารถประมวลผล QR Code ได้' })
+    }
+  }
+
+  useEffect(() => {
+    if (showRegisterClassroomModal && !qrScannerRef.current) {
+      const scanner = new Html5QrcodeScanner(
+        "qr-reader", 
+        { fps: 10, qrbox: 250 },
+        /* verbose= */ false
+      );
+      
+      scanner.render((decodedText) => {
+        // QR code detected - process it
+        handleQRCodeScanned(decodedText);
+        // Optional: stop scanning after successful detection
+        scanner.clear();
+      }, (error) => {
+        // Handle scan errors silently
+      });
+      
+      qrScannerRef.current = scanner;
+      
+      // Cleanup function
+      return () => {
+        if (qrScannerRef.current) {
+          qrScannerRef.current.clear();
+          qrScannerRef.current = null;
+        }
+      };
+    }
+  }, [showRegisterClassroomModal]);
+
+  useEffect(() => {
+    console.log("Loading state:", loading);
+    console.log("Selected classroom:", selectedClassroom);
+  }, [loading, selectedClassroom]);
+
   if (!currentUser) return null
 
   return (
@@ -260,8 +414,25 @@ function StudentDashboard() {
         {/* ถ้ายังไม่เลือกห้อง => แสดง list ห้องเรียน */}
         {!loading && !selectedClassroom && (
           <>
+            <div className="mb-6">
+              <button
+                onClick={() => setShowRegisterClassroomModal(true)}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition font-ChakraPetchTH text-lg shadow-md"
+              >
+                ลงทะเบียนห้องเรียนใหม่
+              </button>
+            </div>
+            
             {myClassrooms.length === 0 ? (
-              <p className="text-center text-gray-600">คุณยังไม่ได้อยู่ในห้องเรียนใด ๆ</p>
+              <div className="text-center">
+                <p className="text-gray-600 mb-4">คุณยังไม่ได้อยู่ในห้องเรียนใด ๆ</p>
+                <button
+                  onClick={() => setShowRegisterClassroomModal(true)}
+                  className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-ChakraPetchTH text-lg shadow-md mx-auto"
+                >
+                  ลงทะเบียนห้องเรียนใหม่
+                </button>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {myClassrooms.map((classroom) => {
@@ -408,6 +579,85 @@ function StudentDashboard() {
                     <button
                       type="button"
                       onClick={() => setShowSignOutModal(false)}
+                      className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                    >
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {showRegisterClassroomModal && (
+          <div className="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true"></div>
+            <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
+              <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg
+                          className="h-6 w-6 text-green-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth="1.5"
+                          stroke="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                          />
+                        </svg>
+                      </div>
+                      <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 className="text-base font-semibold text-gray-900" id="modal-title">
+                          ลงทะเบียนห้องเรียน
+                        </h3>
+                        <div className="mt-2">
+                          <form onSubmit={handleRegisterClassroom}>
+                            <input
+                              type="text"
+                              placeholder="รหัสห้องเรียน"
+                              className="w-full p-2 border rounded mb-2"
+                              value={registerClassroomId}
+                              onChange={(e) => setRegisterClassroomId(e.target.value)}
+                            />
+                            <button
+                              type="submit"
+                              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                            >
+                              ลงทะเบียน
+                            </button>
+                          </form>
+                          {registerMessage.text && (
+                            <p
+                              className={`mt-2 text-sm ${
+                                registerMessage.type === 'error' ? 'text-red-600' : 'text-green-600'
+                              }`}
+                            >
+                              {registerMessage.text}
+                            </p>
+                          )}
+                          <div className="mt-4">
+                            <h4 className="text-md font-ChakraPetchTH mb-2">หรือสแกน QR Code</h4>
+                            <div 
+                              id="qr-reader" 
+                              className="w-full rounded overflow-hidden"
+                              style={{ maxWidth: '100%' }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowRegisterClassroomModal(false)}
                       className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
                     >
                       ยกเลิก
