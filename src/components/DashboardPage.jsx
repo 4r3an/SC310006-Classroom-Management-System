@@ -985,11 +985,12 @@ const handleToggleCheckinStatus = async (record) => {
                         </div>
                       </form>
                     ) : (
-                      // Student Management
+                      // Student Management with clearer separation
                       <>
-                        <div className="mt-4">
-                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
-                            นักเรียนที่ลงทะเบียน
+                        {/* SECTION 1: Registered Students */}
+                        <div className="mt-4 p-6 border-2 rounded-xl border-blue-200 bg-white shadow-sm">
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900 border-b pb-2 border-blue-100">
+                            1️⃣ นักเรียนที่ลงทะเบียน
                           </h3>
                           {editStudents.length > 0 ? (
                             <div className="overflow-x-auto">
@@ -1034,9 +1035,10 @@ const handleToggleCheckinStatus = async (record) => {
                           )}
                         </div>
 
-                        <div className="mt-8">
-                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
-                            เพิ่มนักเรียน
+                        {/* SECTION 2: Adding Students */}
+                        <div className="mt-6 p-6 border-2 rounded-xl border-green-200 bg-white shadow-sm">
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900 border-b pb-2 border-green-100">
+                            2️⃣ เพิ่มนักเรียน
                           </h3>
                           <div className="mb-4">
                             <select
@@ -1052,7 +1054,7 @@ const handleToggleCheckinStatus = async (record) => {
                               ))}
                             </select>
                           </div>
-                          <div className="flex space-x-4">
+                          <div>
                             <button
                               type="button"
                               onClick={handleAddStudent}
@@ -1060,6 +1062,16 @@ const handleToggleCheckinStatus = async (record) => {
                             >
                               เพิ่มนักเรียน
                             </button>
+                          </div>
+                        </div>
+
+                        {/* SECTION 3: Check-in Management */}
+                        <div className="mt-6 p-6 border-2 rounded-xl border-indigo-200 bg-white shadow-sm">
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900 border-b pb-2 border-indigo-100">
+                            3️⃣ จัดการการเช็คชื่อ
+                          </h3>
+                          
+                          <div className="mb-4">
                             <button
                               type="button"
                               onClick={() => setShowAttendanceInline(prev => !prev)}
@@ -1165,15 +1177,8 @@ const handleToggleCheckinStatus = async (record) => {
                                 <div className="flex space-x-4 mt-4">
                                   <button
                                     type="button"
-                                    onClick={handleFinishCheckin}
-                                    className="w-1/2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
-                                  >
-                                    สิ้นสุดการเช็คชื่อ
-                                  </button>
-                                  <button
-                                    type="button"
                                     onClick={handleShowCheckinQR}
-                                    className="w-1/2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                                    className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
                                   >
                                     แสดง QR Code เช็คชื่อ
                                   </button>
@@ -1181,85 +1186,86 @@ const handleToggleCheckinStatus = async (record) => {
                               </div>
                             </div>
                           )}
-                        </div>
 
-                        <div className="mt-8">
-                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
-                            บันทึกการเช็คชื่อ
-                          </h3>
-                          {editCheckinRecords.length > 0 ? (
-                            <div className="overflow-x-auto">
-                              <table className="w-full border">
-                                <thead>
-                                  <tr className="bg-blue-100">
-                                    <th className="border font-ChakraPetchTH p-2 text-left">ลำดับ</th>
-                                    <th className="border font-ChakraPetchTH p-2 text-left">รหัสเช็คชื่อ</th>
-                                    <th className="border font-ChakraPetchTH p-2 text-left">วัน/เวลา</th>
-                                    <th className="border font-ChakraPetchTH p-2 text-left">สถานะ</th>
-                                    <th className="border font-ChakraPetchTH p-2 text-left">รายละเอียด</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {editCheckinRecords.map((record, index) => (
-                                    <tr key={record.id} className="hover:bg-blue-50">
-                                      <td className="border font-ChakraPetchTH p-2">{index + 1}</td>
-                                      <td className="border font-ChakraPetchTH p-2">{record.code}</td>
-                                      <td className="border font-ChakraPetchTH p-2">{record.date}</td>
-                                      <td className="border font-ChakraPetchTH p-2">
-                                        {record.status === 0 ? (
-                                          <span className="text-red-600">ปิดใช้งาน</span>
-                                        ) : record.status === 1 ? (
-                                          <span className="text-green-600">กำลังใช้งาน</span>
-                                        ) : (
-                                          <span className="text-gray-500">เสร็จสิ้น</span>
-                                        )}
-                                      </td>
-                                      <td className="border p-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleViewCheckinDetails(record)}
-                                          className="bg-indigo-600 font-ChakraPetchTH text-white px-3 py-1 rounded hover:bg-indigo-700 transition mr-2"
-                                        >
-                                          รายละเอียด
-                                        </button>
-                                        
-                                        {/* Status Toggle Button - works for all check-ins */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleToggleCheckinStatus(record)}
-                                          className={`font-ChakraPetchTH text-white px-3 py-1 rounded transition mr-2 ${
-                                            record.status === 1 
-                                              ? 'bg-red-600 hover:bg-red-700' 
-                                              : record.status === 0
-                                                ? 'bg-green-600 hover:bg-green-700'
-                                                : 'bg-blue-600 hover:bg-blue-700'
-                                          }`}
-                                        >
-                                          {record.status === 1 
-                                            ? 'ปิดใช้งาน' 
-                                            : record.status === 0
-                                              ? 'ตั้งเป็นเสร็จสิ้น'
-                                              : 'เปิดใช้งานใหม่'}
-                                        </button>
-                                        
-                                        <button
-                                          type="button"
-                                          onClick={() => handleAddQuiz(record)}
-                                          className="bg-indigo-600 font-ChakraPetchTH text-white px-3 py-1 rounded hover:bg-indigo-700 transition"
-                                        >
-                                          ควิซ
-                                        </button>
-                                      </td>
+                          {/* Check-in Records */}
+                          <div className="mt-6">
+                            <h4 className="text-lg font-ChakraPetchTH mb-3 text-blue-800">
+                              บันทึกการเช็คชื่อ
+                            </h4>
+                            {editCheckinRecords.length > 0 ? (
+                              <div className="overflow-x-auto">
+                                <table className="w-full border">
+                                  <thead>
+                                    <tr className="bg-blue-100">
+                                      <th className="border font-ChakraPetchTH p-2 text-left">ลำดับ</th>
+                                      <th className="border font-ChakraPetchTH p-2 text-left">รหัสเช็คชื่อ</th>
+                                      <th className="border font-ChakraPetchTH p-2 text-left">วัน/เวลา</th>
+                                      <th className="border font-ChakraPetchTH p-2 text-left">สถานะ</th>
+                                      <th className="border font-ChakraPetchTH p-2 text-left">รายละเอียด</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <p className="text-center text-gray-700">
-                              ไม่มีบันทึกการเช็คชื่อในห้องเรียนนี้
-                            </p>
-                          )}
+                                  </thead>
+                                  <tbody>
+                                    {editCheckinRecords.map((record, index) => (
+                                      <tr key={record.id} className="hover:bg-blue-50">
+                                        <td className="border font-ChakraPetchTH p-2">{index + 1}</td>
+                                        <td className="border font-ChakraPetchTH p-2">{record.code}</td>
+                                        <td className="border font-ChakraPetchTH p-2">{record.date}</td>
+                                        <td className="border font-ChakraPetchTH p-2">
+                                          {record.status === 0 ? (
+                                            <span className="text-red-600">ปิดใช้งาน</span>
+                                          ) : record.status === 1 ? (
+                                            <span className="text-green-600">กำลังใช้งาน</span>
+                                          ) : (
+                                            <span className="text-gray-500">เสร็จสิ้น</span>
+                                          )}
+                                        </td>
+                                        <td className="border p-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleViewCheckinDetails(record)}
+                                            className="bg-indigo-600 font-ChakraPetchTH text-white px-3 py-1 rounded hover:bg-indigo-700 transition mr-2"
+                                          >
+                                            รายละเอียด
+                                          </button>
+                                          
+                                          {/* Status Toggle Button - works for all check-ins */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleToggleCheckinStatus(record)}
+                                            className={`font-ChakraPetchTH text-white px-3 py-1 rounded transition mr-2 ${
+                                              record.status === 1 
+                                                ? 'bg-red-600 hover:bg-red-700' 
+                                                : record.status === 0
+                                                  ? 'bg-green-600 hover:bg-green-700'
+                                                  : 'bg-blue-600 hover:bg-blue-700'
+                                            }`}
+                                          >
+                                            {record.status === 1 
+                                              ? 'ปิดใช้งาน' 
+                                              : record.status === 0
+                                                ? 'ตั้งเป็นเสร็จสิ้น'
+                                                : 'เปิดใช้งานใหม่'}
+                                          </button>
+                                          
+                                          <button
+                                            type="button"
+                                            onClick={() => handleAddQuiz(record)}
+                                            className="bg-indigo-600 font-ChakraPetchTH text-white px-3 py-1 rounded hover:bg-indigo-700 transition"
+                                          >
+                                            ควิซ
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <p className="text-center text-gray-700">
+                                ไม่มีบันทึกการเช็คชื่อในห้องเรียนนี้
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </>
                     )}
@@ -1351,7 +1357,7 @@ const handleToggleCheckinStatus = async (record) => {
                           fill="currentColor"
                           viewBox="0 0 20 20"
                         >
-                          <path d="M6 10c0-1.105.672-2 1.5-2S9 8.895 9 10s-.672 2-1.5 2S6 11.105 6 10zm4 0c0-1.105.672-2 1.5-2s1.5.895 1.5 2-.672 2-1.5 2-1.5-.895-1.5-2zm4 0c0-1.105.672-2 1.5-2s1.5.895 1.5 2-.672 2-1.5 2-1.5-.895-1.5-2z" />
+                          <path d="M6 10c0-1.105.672-2 1.5-2S9 8.895 9 10s-.672 2-1.5 2S6 11.105 6 10zm4 0c0-1.105.672-2 1.5-2s1.5.895 1.5 2-.672 2-1.5 2-1.5-.895-1.5-2z" />
                         </svg>
                       </button>
                       {openDropdownId === classroom.id && (
