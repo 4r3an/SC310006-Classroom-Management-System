@@ -964,12 +964,14 @@ const filteredStudents = getFilteredStudents()
       </svg>
     </div>
   </div>
-  <div className="ml-4">
-    <p className="text-white font-InterEN font-bold group-hover:text-blue-200 transition-colors">
+  <div className="ml-4 min-w-0 max-w-[160px] overflow-hidden">
+    <p className="text-white font-InterEN font-bold truncate group-hover:text-blue-200 transition-colors"
+       title={profile?.name || currentUser?.email || 'User'}>
       {profile?.name || currentUser?.email || 'User'}
     </p>
     {currentUser && (
-      <p className="text-blue-200 font-InterEN text-sm group-hover:text-blue-300 transition-colors">
+      <p className="text-blue-200 font-InterEN text-sm truncate group-hover:text-blue-300 transition-colors"
+         title={currentUser.email}>
         {currentUser.email}
       </p>
     )}
@@ -1807,6 +1809,7 @@ const filteredStudents = getFilteredStudents()
                   }
                 </p>
               </div>
+
             </div>
 
             <p className="text-blue-700 font-ChakraPetchTH mb-2">
