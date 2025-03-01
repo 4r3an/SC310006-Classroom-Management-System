@@ -87,6 +87,13 @@ function Dashboard() {
   const [showCheckinQRModal, setShowCheckinQRModal] = useState(false)
   const [newCheckinStatus, setNewCheckinStatus] = useState(1)
 
+  // Add these new state variables for student search and filter
+  const [studentSearch, setStudentSearch] = useState('')
+  const [studentStatusFilter, setStudentStatusFilter] = useState('all')
+  const [selectedStudents, setSelectedStudents] = useState([])
+  const [sortField, setSortField] = useState('')
+  const [sortDirection, setSortDirection] = useState('asc')
+
   /**
    * useEffect: Fetch user profile if currentUser exists.
    */
@@ -789,6 +796,118 @@ const handleToggleCheckinStatus = async (record) => {
   }
 };
 
+/**
+ * handleSelectStudent: Toggles the selection of a student for bulk actions.
+ * @param {string} studentId - ID of the student to toggle selection for
+ */
+const handleSelectStudent = (studentId) => {
+  setSelectedStudents((prev) =>
+    prev.includes(studentId)
+      ? prev.filter((id) => id !== studentId)
+      : [...prev, studentId]
+  )
+}
+
+/**
+ * handleSelectAllStudents: Toggles the selection of all students for bulk actions.
+ */
+const handleSelectAllStudents = () => {
+  if (selectedStudents.length === filteredStudents.length) {
+    setSelectedStudents([])
+  } else {
+    setSelectedStudents(filteredStudents.map((student) => student.id))
+  }
+}
+
+/**
+ * handleBulkVerify: Verifies all selected students.
+ */
+const handleBulkVerify = async () => {
+  try {
+    const batch = db.batch()
+    selectedStudents.forEach((studentId) => {
+      const studentRef = doc(db, 'classroom', editingClassroom.id, 'students', studentId)
+      batch.update(studentRef, { status: 1 })
+    })
+    await batch.commit()
+    setEditStudents((prev) =>
+      prev.map((student) =>
+        selectedStudents.includes(student.id) ? { ...student, status: 1 } : student
+      )
+    )
+    setSelectedStudents([])
+  } catch (error) {
+    console.error('Error verifying students:', error)
+    alert('Failed to verify students.')
+  }
+}
+
+/**
+ * handleBulkUnverify: Unverifies all selected students.
+ */
+const handleBulkUnverify = async () => {
+  try {
+    const batch = db.batch()
+    selectedStudents.forEach((studentId) => {
+      const studentRef = doc(db, 'classroom', editingClassroom.id, 'students', studentId)
+      batch.update(studentRef, { status: 0 })
+    })
+    await batch.commit()
+    setEditStudents((prev) =>
+      prev.map((student) =>
+        selectedStudents.includes(student.id) ? { ...student, status: 0 } : student
+      )
+    )
+    setSelectedStudents([])
+  } catch (error) {
+    console.error('Error unverifying students:', error)
+    alert('Failed to unverify students.')
+  }
+}
+
+/**
+ * handleSort: Sorts the students based on the specified field and direction.
+ * @param {string} field - The field to sort by
+ */
+const handleSort = (field) => {
+  const direction = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc'
+  setSortField(field)
+  setSortDirection(direction)
+}
+
+/**
+ * getFilteredStudents: Returns the filtered and sorted list of students based on search and filter criteria.
+ */
+const getFilteredStudents = () => {
+  let filtered = editStudents
+
+  if (studentSearch) {
+    filtered = filtered.filter(
+      (student) =>
+        student.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        student.stdid.toLowerCase().includes(studentSearch.toLowerCase())
+    )
+  }
+
+  if (studentStatusFilter !== 'all') {
+    filtered = filtered.filter((student) =>
+      studentStatusFilter === 'verified' ? student.status === 1 : student.status === 0
+    )
+  }
+
+  if (sortField) {
+    filtered = filtered.sort((a, b) => {
+      if (a[sortField] < b[sortField]) return sortDirection === 'asc' ? -1 : 1
+      if (a[sortField] > b[sortField]) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
+  return filtered
+}
+
+const filteredStudents = getFilteredStudents()
+
   return (
     <div className="flex h-screen bg-blue-50 overflow-hidden">
       {/* Sidebar */}
@@ -898,7 +1017,7 @@ const handleToggleCheckinStatus = async (record) => {
                             fill="currentColor"
                             viewBox="0 0 20 20"
                           >
-                            <path d="M6 10c0-1.105.672-2 1.5-2S9 8.895 9 10s-.672 2-1.5 2S6 11.105 6 10zm4 0c0-1.105.672-2 1.5-2s1.5.895 1.5 2-.672 2-1.5 2-1.5-.895-1.5-2zm4 0c0-1.105.672-2 1.5-2s1.5.895 1.5 2-.672 2-1.5 2-1.5-.895-1.5-2z" />
+                            <path d="M6 10c0-1.105.672-2 1.5-2S9 8.895 9 10s-.672 2-1.5 2S6 11.105 6 10zm4 0c0-1.105.672-2 1.5-2s1.5.895 1.5 2-.672 2-1.5 2-1.5-.895-1.5-2z" />
                           </svg>
                         </button>
                         {dropdownOpen && (
@@ -987,7 +1106,225 @@ const handleToggleCheckinStatus = async (record) => {
                     ) : (
                       // Student Management with clearer separation
                       <>
-                        {/* SECTION 1: Registered Students */}
+                        {/* SECTION 1: Student Statistics and Filters */}
+                        <div className="mt-4 p-6 border-2 rounded-xl border-blue-200 bg-white shadow-sm">
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900 border-b pb-2 border-blue-100">
+                            1️⃣ สถิติและการค้นหานักเรียน
+                          </h3>
+                          
+                          {/* Statistics Cards */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 flex items-center">
+                              <div className="rounded-full bg-blue-500 p-3 mr-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-500 font-ChakraPetchTH">นักเรียนทั้งหมด</p>
+                                <p className="text-2xl font-bold text-blue-800">{editStudents.length}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="bg-green-50 p-4 rounded-lg border border-green-200 flex items-center">
+                              <div className="rounded-full bg-green-500 p-3 mr-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-500 font-ChakraPetchTH">ยืนยันแล้ว</p>
+                                <p className="text-2xl font-bold text-green-800">
+                                  {editStudents.filter(student => student.status === 1).length}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 flex items-center">
+                              <div className="rounded-full bg-yellow-500 p-3 mr-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-sm text-gray-500 font-ChakraPetchTH">รอการยืนยัน</p>
+                                <p className="text-2xl font-bold text-yellow-800">
+                                  {editStudents.filter(student => student.status === 0).length}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Search and Filter */}
+                          <div className="flex flex-col md:flex-row gap-4 mb-4">
+                            <div className="w-full md:w-2/3">
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  placeholder="ค้นหาตามชื่อหรือรหัสนักศึกษา..."
+                                  value={studentSearch || ''}
+                                  onChange={(e) => setStudentSearch(e.target.value)}
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none pl-10"
+                                />
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-3 top-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                              </div>
+                            </div>
+                            
+                            <div className="w-full md:w-1/3">
+                              <select
+                                value={studentStatusFilter}
+                                onChange={(e) => setStudentStatusFilter(e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                              >
+                                <option value="all">ทั้งหมด</option>
+                                <option value="verified">ยืนยันแล้ว</option>
+                                <option value="unverified">รอการยืนยัน</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* SECTION 2: Registered Students with enhanced table */}
+                        <div className="mt-4 p-6 border-2 rounded-xl border-blue-200 bg-white shadow-sm">
+                          <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900 border-b pb-2 border-blue-100">
+                            2️⃣ นักเรียนที่ลงทะเบียน
+                          </h3>
+                          {editStudents.length > 0 ? (
+                            <div>
+                              {/* Bulk Actions */}
+                              <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    id="select-all"
+                                    checked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                                    onChange={handleSelectAllStudents}
+                                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <label htmlFor="select-all" className="ml-2 text-gray-700 font-ChakraPetchTH">
+                                    เลือกทั้งหมด
+                                  </label>
+                                </div>
+                                
+                                {selectedStudents.length > 0 && (
+                                  <div className="flex space-x-2">
+                                    <button
+                                      onClick={handleBulkVerify}
+                                      className="px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition font-ChakraPetchTH"
+                                    >
+                                      ยืนยันที่เลือก ({selectedStudents.length})
+                                    </button>
+                                    <button
+                                      onClick={handleBulkUnverify}
+                                      className="px-3 py-2 bg-yellow-500 text-white text-sm rounded hover:bg-yellow-600 transition font-ChakraPetchTH"
+                                    >
+                                      ยกเลิกการยืนยันที่เลือก
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {/* Enhanced Table */}
+                              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-ChakraPetchTH">
+                                        <div className="flex items-center cursor-pointer" onClick={() => handleSort('stdid')}>
+                                          รหัสนักศึกษา
+                                          {sortField === 'stdid' && (
+                                            <span className="ml-1">
+                                              {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </th>
+                                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-ChakraPetchTH">
+                                        <div className="flex items-center cursor-pointer" onClick={() => handleSort('name')}>
+                                          ชื่อ
+                                          {sortField === 'name' && (
+                                            <span className="ml-1">
+                                              {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </th>
+                                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-ChakraPetchTH">
+                                        <div className="flex items-center cursor-pointer" onClick={() => handleSort('status')}>
+                                          สถานะ
+                                          {sortField === 'status' && (
+                                            <span className="ml-1">
+                                              {sortDirection === 'asc' ? '▲' : '▼'}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </th>
+                                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-ChakraPetchTH">
+                                        การปฏิบัติ
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-200">
+                                    {filteredStudents.map((student, index) => (
+                                      <tr key={student.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                        <td className="pl-6 py-4 whitespace-nowrap">
+                                          <input
+                                            type="checkbox"
+                                            checked={selectedStudents.includes(student.id)}
+                                            onChange={() => handleSelectStudent(student.id)}
+                                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                                          />
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                          {student.stdid}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                          {student.name}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                            student.status === 1 
+                                              ? 'bg-green-100 text-green-800' 
+                                              : 'bg-yellow-100 text-yellow-800'
+                                          }`}>
+                                            {student.status === 1 ? 'ยืนยันแล้ว' : 'รอการยืนยัน'}
+                                          </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                          <button
+                                            onClick={() => handleToggleStudentVerification(student.id)}
+                                            className={`px-3 py-1 rounded ${
+                                              student.status === 1 
+                                                ? 'bg-yellow-500 hover:bg-yellow-600' 
+                                                : 'bg-green-600 hover:bg-green-700'
+                                            } text-white transition`}
+                                          >
+                                            {student.status === 1 ? 'ยกเลิกการยืนยัน' : 'ยืนยันนักเรียน'}
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                                
+                                {filteredStudents.length === 0 && (
+                                  <div className="text-center py-8 text-gray-500 font-ChakraPetchTH">
+                                    ไม่พบนักเรียนที่ตรงตามเงื่อนไขการค้นหา
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-center text-gray-700 py-4">
+                              ยังไม่มีนักเรียนในห้องเรียนนี้
+                            </p>
+                          )}
+                        </div>
+
+                        {/* SECTION 3: Registered Students */}
                         <div className="mt-4 p-6 border-2 rounded-xl border-blue-200 bg-white shadow-sm">
                           <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900 border-b pb-2 border-blue-100">
                             1️⃣ นักเรียนที่ลงทะเบียน
@@ -1035,33 +1372,39 @@ const handleToggleCheckinStatus = async (record) => {
                           )}
                         </div>
 
-                        {/* SECTION 2: Adding Students */}
+                        {/* SECTION 3: Adding Students - Updated with better styling */}
                         <div className="mt-6 p-6 border-2 rounded-xl border-green-200 bg-white shadow-sm">
                           <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900 border-b pb-2 border-green-100">
-                            2️⃣ เพิ่มนักเรียน
+                            3️⃣ เพิ่มนักเรียน
                           </h3>
-                          <div className="mb-4">
-                            <select
-                              value={selectedStudent}
-                              onChange={(e) => setSelectedStudent(e.target.value)}
-                              className="w-full font-ChakraPetchTH p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            >
-                              <option value="">-- เลือกนักเรียน --</option>
-                              {availableUsers.map((user) => (
-                                <option key={user.id} value={user.id}>
-                                  {user.name} ({user.email})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <button
-                              type="button"
-                              onClick={handleAddStudent}
-                              className="w-full font-ChakraPetchTH bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-                            >
-                              เพิ่มนักเรียน
-                            </button>
+                          <div className="flex flex-col md:flex-row gap-4">
+                            <div className="w-full md:w-3/4">
+                              <select
+                                value={selectedStudent}
+                                onChange={(e) => setSelectedStudent(e.target.value)}
+                                className="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              >
+                                <option value="">-- เลือกนักเรียน --</option>
+                                {availableUsers.map((user) => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.name} ({user.email})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="w-full md:w-1/4">
+                              <button
+                                type="button"
+                                onClick={handleAddStudent}
+                                className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition font-ChakraPetchTH flex items-center justify-center"
+                                disabled={!selectedStudent}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                เพิ่มนักเรียน
+                              </button>
+                            </div>
                           </div>
                         </div>
 
