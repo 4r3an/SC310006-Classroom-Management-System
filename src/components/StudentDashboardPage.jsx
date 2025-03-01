@@ -55,6 +55,9 @@ function StudentDashboard() {
   const [isProcessingCheckin, setIsProcessingCheckin] = useState(false)
   const checkinQRScannerRef = useRef(null)
 
+  // First, add a new state to store check-in history (add near the other state declarations)
+  const [checkinHistory, setCheckinHistory] = useState([]);
+
   useEffect(() => {
     if (!currentUser) {
       navigate('/')
@@ -127,6 +130,9 @@ function StudentDashboard() {
       setSelectedClassroom(classroom)
       setAnswersInput({}) // เคลียร์คำตอบเก่า
 
+      // เรียกดูประวัติการเช็คชื่อของนักเรียนในห้องเรียนนี้
+      await fetchCheckinHistory(classroom.id);
+
       // โหลดเอกสาร checkin ทั้งหมดของห้อง (classroom.id)
       const checkinSnapshot = await getDocs(
         collection(db, 'classroom', classroom.id, 'checkin')
@@ -160,6 +166,57 @@ function StudentDashboard() {
       setLoading(false)
     }
   }
+
+  // Add this function to fetch check-in history for the currently selected classroom
+  const fetchCheckinHistory = async (classroomId) => {
+    try {
+      // Get all check-ins for this classroom
+      const checkinSnapshot = await getDocs(
+        collection(db, 'classroom', classroomId, 'checkin')
+      );
+      
+      let history = [];
+      
+      // For each check-in, check if this student has checked in
+      for (const checkinDoc of checkinSnapshot.docs) {
+        const checkinData = checkinDoc.data();
+        
+        // Check if student has a document in the students subcollection
+        const studentCheckinRef = doc(
+          db, 
+          'classroom', 
+          classroomId, 
+          'checkin', 
+          checkinDoc.id, 
+          'students', 
+          currentUser.uid
+        );
+        
+        const studentCheckinSnap = await getDoc(studentCheckinRef);
+        
+        // If student has checked in for this record, add it to history
+        if (studentCheckinSnap.exists()) {
+          const studentData = studentCheckinSnap.data();
+          history.push({
+            id: checkinDoc.id,
+            code: checkinData.code,
+            date: checkinData.date,
+            checkinTime: studentData.date,
+            status: checkinData.status
+          });
+        }
+      }
+      
+      // Sort by date (newest first)
+      history.sort((a, b) => {
+        return new Date(b.date) - new Date(a.date);
+      });
+      
+      setCheckinHistory(history);
+    } catch (error) {
+      console.error("Error fetching check-in history:", error);
+    }
+  };
 
   // ปิดมุมมอง quiz กลับสู่รายชื่อห้องเรียน
   const handleBackToList = () => {
@@ -725,13 +782,78 @@ function StudentDashboard() {
                   เช็คชื่อเข้าเรียน
                 </button>
               </div>
+              
               <div className="mt-3">
-                <p className="text-gray-600 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                <p className="text-gray-600 bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   กดปุ่มเช็คชื่อเพื่อสแกน QR Code ที่อาจารย์แสดง เพื่อบันทึกการเข้าเรียนของคุณ
                 </p>
+                
+                {/* Check-in History Table */}
+                <div className="mt-4">
+                  <h3 className="text-lg font-ChakraPetchTH font-semibold text-blue-800 mb-2">
+                    ประวัติการเช็คชื่อของคุณ
+                  </h3>
+                  
+                  {checkinHistory.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-green-50">
+                            <th className="border border-green-200 px-4 py-2 text-left font-ChakraPetchTH">ลำดับ</th>
+                            <th className="border border-green-200 px-4 py-2 text-left font-ChakraPetchTH">รหัสการเช็คชื่อ</th>
+                            <th className="border border-green-200 px-4 py-2 text-left font-ChakraPetchTH">วันที่เช็คชื่อ</th>
+                            <th className="border border-green-200 px-4 py-2 text-left font-ChakraPetchTH">เช็คชื่อเมื่อ</th>
+                            <th className="border border-green-200 px-4 py-2 text-left font-ChakraPetchTH">สถานะ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {checkinHistory.map((checkin, index) => (
+                            <tr key={checkin.id} className="hover:bg-green-50 transition-colors">
+                              <td className="border border-green-200 px-4 py-2 font-ChakraPetchTH">{index + 1}</td>
+                              <td className="border border-green-200 px-4 py-2 font-ChakraPetchTH">{checkin.code}</td>
+                              <td className="border border-green-200 px-4 py-2 font-ChakraPetchTH">{checkin.date}</td>
+                              <td className="border border-green-200 px-4 py-2 font-ChakraPetchTH">{checkin.checkinTime}</td>
+                              <td className="border border-green-200 px-4 py-2 font-ChakraPetchTH">
+                                {checkin.status === 1 ? (
+                                  <span className="text-green-600 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    เปิดใช้งาน
+                                  </span>
+                                ) : checkin.status === 0 ? (
+                                  <span className="text-red-600 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    ปิดใช้งาน
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-600 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    เสร็จสิ้น
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-gray-600 font-ChakraPetchTH">คุณยังไม่มีประวัติการเช็คชื่อในห้องเรียนนี้</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
