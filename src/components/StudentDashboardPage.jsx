@@ -85,10 +85,13 @@ function StudentDashboard() {
           }
         })
         const classroomDocs = await Promise.all(parentDocPromises)
-        const classroomsData = classroomDocs.map((c) => ({
-          id: c.id,
-          ...c.data(),
-        }))
+        const classroomsData = classroomDocs
+          .map((c) => ({
+            id: c.id,
+            ...c.data(),
+          }))
+          .filter(classroom => classroom.info && classroom.info.name); // Only include classrooms with valid info
+
         setMyClassrooms(classroomsData)
       } catch (error) {
         console.error('Error loading classrooms:', error)
@@ -470,7 +473,7 @@ function StudentDashboard() {
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-2xl font-bold mb-6 text-blue-900">แบบทดสอบ (Quiz)</h2>
             {questions.length === 0 ? (
-              <p className="text-gray-600">ยังไม่มีควิซ (question_show = true)</p>
+              <p className="text-gray-600">ยังไม่มีควิซ</p>
             ) : (
               <div className="space-y-6">
                 {questions.map((q) => {
