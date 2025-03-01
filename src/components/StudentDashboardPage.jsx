@@ -49,6 +49,12 @@ function StudentDashboard() {
 
   const qrScannerRef = useRef(null);
 
+  // Add these near the other state declarations (around line 30)
+  const [showCheckinQRModal, setShowCheckinQRModal] = useState(false)
+  const [checkinMessage, setCheckinMessage] = useState({ type: '', text: '' })
+  const [isProcessingCheckin, setIsProcessingCheckin] = useState(false)
+  const checkinQRScannerRef = useRef(null)
+
   useEffect(() => {
     if (!currentUser) {
       navigate('/')
@@ -313,6 +319,175 @@ function StudentDashboard() {
     }
   }
 
+  /**
+   * handleCheckinQRCodeScanned: Processes student check-in via QR code scan.
+   * Extracts classroom ID and check-in ID from URL and marks the student as present.
+   * 
+   * ประมวลผลการเช็คชื่อนักเรียนผ่านการสแกน QR code
+   * แยก ID ห้องเรียนและ ID การเช็คชื่อจาก URL และทำเครื่องหมายว่านักเรียนเข้าเรียน
+   * @param {string} qrData - URL data from QR code scan
+   */
+  const handleCheckinQRCodeScanned = async (qrData) => {
+    try {
+      setIsProcessingCheckin(true);
+      // Extract classroom ID and check-in ID from URL pattern
+      // Expected format: https://4r3an.github.io/SC310006-Classroom-Management-System/#/student-checkin/{classroomId}/{checkinId}
+      const urlPattern = /\/student-checkin\/([^/?\s]+)\/([^/?\s]+)/;
+      const match = qrData.match(urlPattern);
+      
+      if (!match || !match[1] || !match[2]) {
+        setCheckinMessage({ type: 'error', text: 'QR Code ไม่ถูกต้องสำหรับการเช็คชื่อ' });
+        return;
+      }
+  
+      const classroomId = match[1];
+      const checkinId = match[2];
+      
+      // Verify this QR code is for the currently selected classroom
+      if (selectedClassroom && selectedClassroom.id !== classroomId) {
+        setCheckinMessage({ 
+          type: 'error', 
+          text: 'QR Code นี้ไม่ตรงกับห้องเรียนที่คุณเลือก' 
+        });
+        return;
+      }
+      
+      // Check if student is registered for this classroom
+      const studentRef = doc(db, 'classroom', classroomId, 'students', currentUser.uid);
+      const studentDoc = await getDoc(studentRef);
+      
+      if (!studentDoc.exists()) {
+        setCheckinMessage({ 
+          type: 'error', 
+          text: 'คุณไม่ได้ลงทะเบียนในห้องเรียนนี้' 
+        });
+        return;
+      }
+      
+      // Check if the check-in exists and is active
+      const checkinRef = doc(db, 'classroom', classroomId, 'checkin', checkinId);
+      const checkinDoc = await getDoc(checkinRef);
+      
+      if (!checkinDoc.exists()) {
+        setCheckinMessage({ 
+          type: 'error', 
+          text: 'ไม่พบรายการเช็คชื่อ หรือการเช็คชื่อถูกยกเลิก' 
+        });
+        return;
+      }
+      
+      const checkinData = checkinDoc.data();
+      
+      // Check status - 0 means disabled, 2 means finished
+      if (checkinData.status === 0) {
+        setCheckinMessage({ 
+          type: 'error', 
+          text: 'การเช็คชื่อนี้ถูกปิดใช้งานชั่วคราว กรุณาติดต่ออาจารย์' 
+        });
+        return;
+      }
+      
+      if (checkinData.status === 2) {
+        setCheckinMessage({ 
+          type: 'error', 
+          text: 'การเช็คชื่อนี้ได้สิ้นสุดแล้ว' 
+        });
+        return;
+      }
+      
+      // Check if student already checked in
+      const studentCheckinRef = doc(
+        db, 
+        'classroom', 
+        classroomId, 
+        'checkin', 
+        checkinId, 
+        'students', 
+        currentUser.uid
+      );
+      
+      const studentCheckinDoc = await getDoc(studentCheckinRef);
+      if (studentCheckinDoc.exists()) {
+        setCheckinMessage({ 
+          type: 'info', 
+          text: 'คุณได้เช็คชื่อในคาบเรียนนี้แล้ว' 
+        });
+        return;
+      }
+      
+      // Process check-in
+      const studentData = studentDoc.data();
+      const dateString = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+      
+      // Store in 'students' subcollection
+      await setDoc(studentCheckinRef, {
+        stdid: currentUser.uid,
+        name: profile?.name || currentUser.email,
+        remark: '',
+        date: dateString
+      });
+      
+      // Store in 'scores' subcollection 
+      await setDoc(
+        doc(db, 'classroom', classroomId, 'checkin', checkinId, 'scores', currentUser.uid),
+        {
+          uid: currentUser.uid,
+          stdid: currentUser.uid,
+          name: profile?.name || currentUser.email,
+          remark: '',
+          dates: dateString,
+          score: 1,
+          status: 1
+        }
+      );
+      
+      setCheckinMessage({ 
+        type: 'success', 
+        text: 'เช็คชื่อสำเร็จ! 🎉' 
+      });
+      
+      // Auto-close modal after successful check-in
+      setTimeout(() => {
+        setShowCheckinQRModal(false);
+        setCheckinMessage({ type: '', text: '' });
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error processing check-in QR code:', error);
+      setCheckinMessage({ 
+        type: 'error', 
+        text: 'เกิดข้อผิดพลาดในการเช็คชื่อ โปรดลองใหม่อีกครั้ง' 
+      });
+    } finally {
+      setIsProcessingCheckin(false);
+    }
+  };
+  
+  /**
+   * handleShowCheckinScanner: Shows the QR scanner modal for check-ins.
+   * Opens a modal with QR scanner to allow students to check in.
+   * 
+   * แสดงโมดัลสแกนเนอร์ QR สำหรับการเช็คชื่อ
+   * เปิดโมดัลพร้อมเครื่องสแกน QR เพื่อให้นักเรียนเช็คชื่อ
+   */
+  const handleShowCheckinScanner = () => {
+    setCheckinMessage({ type: '', text: '' });
+    setShowCheckinQRModal(true);
+  };
+
+  /**
+   * handleShowCheckinInClassroom: Shows the QR scanner modal for check-ins within a specific classroom.
+   * Opens a modal with QR scanner to allow students to check in to the current classroom.
+   * 
+   * แสดงโมดัลสแกนเนอร์ QR สำหรับการเช็คชื่อภายในห้องเรียนที่ระบุ
+   * เปิดโมดัลพร้อมเครื่องสแกน QR เพื่อให้นักเรียนเช็คชื่อในห้องเรียนปัจจุบัน
+   * @param {Object} classroom - The classroom object for context
+   */
+  const handleShowCheckinInClassroom = (classroom) => {
+    setCheckinMessage({ type: '', text: '' });
+    setShowCheckinQRModal(true);
+  };
+
   useEffect(() => {
     if (showRegisterClassroomModal && !qrScannerRef.current) {
       const scanner = new Html5QrcodeScanner(
@@ -341,6 +516,36 @@ function StudentDashboard() {
       };
     }
   }, [showRegisterClassroomModal]);
+
+  // Initialize check-in QR scanner when modal is opened
+  useEffect(() => {
+    if (showCheckinQRModal && !checkinQRScannerRef.current) {
+      const scanner = new Html5QrcodeScanner(
+        "checkin-qr-reader", 
+        { fps: 10, qrbox: 250 },
+        /* verbose= */ false
+      );
+      
+      scanner.render((decodedText) => {
+        // QR code detected - process it for check-in
+        handleCheckinQRCodeScanned(decodedText);
+        // Stop scanning after successful detection
+        scanner.clear();
+      }, (error) => {
+        // Handle scan errors silently
+      });
+      
+      checkinQRScannerRef.current = scanner;
+      
+      // Cleanup function
+      return () => {
+        if (checkinQRScannerRef.current) {
+          checkinQRScannerRef.current.clear();
+          checkinQRScannerRef.current = null;
+        }
+      };
+    }
+  }, [showCheckinQRModal]);
 
   useEffect(() => {
     console.log("Loading state:", loading);
@@ -469,6 +674,21 @@ function StudentDashboard() {
         )}
 
         {/* ถ้าเลือกห้อง => แสดงรายการ quiz */}
+        {!loading && selectedClassroom && (
+          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-blue-900">การเช็คชื่อ</h2>
+              <button
+                onClick={() => handleShowCheckinInClassroom(selectedClassroom)}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-ChakraPetchTH shadow-md"
+              >
+                เช็คชื่อเข้าเรียน
+              </button>
+            </div>
+            <p className="text-gray-600">กดปุ่มเช็คชื่อเพื่อสแกน QR Code ที่อาจารย์แสดง</p>
+          </div>
+        )}
+
         {!loading && selectedClassroom && (
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-2xl font-bold mb-6 text-blue-900">แบบทดสอบ (Quiz)</h2>
@@ -664,6 +884,78 @@ function StudentDashboard() {
                       className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
                     >
                       ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Modal: Check-in QR Scanner */}
+        {showCheckinQRModal && (
+          <div className="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true"></div>
+            <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
+              <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="mx-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg
+                          className="h-6 w-6 text-blue-600"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth="1.5"
+                          stroke="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                          />
+                        </svg>
+                      </div>
+                      <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 className="text-base font-semibold text-gray-900" id="modal-title">
+                          เช็คชื่อเข้าเรียน
+                          {selectedClassroom && (
+                            <span className="text-blue-600 ml-2">
+                              {selectedClassroom.info?.name}
+                            </span>
+                          )}
+                        </h3>
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-500 mb-4">
+                            กรุณาสแกน QR Code ที่อาจารย์แสดงเพื่อเช็คชื่อเข้าเรียน
+                          </p>
+                          
+                          {checkinMessage.text && (
+                            <div className={`p-3 rounded mb-4 ${
+                              checkinMessage.type === 'error' ? 'bg-red-100 text-red-700' : 
+                              checkinMessage.type === 'success' ? 'bg-green-100 text-green-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              <p className="text-sm font-ChakraPetchTH">{checkinMessage.text}</p>
+                            </div>
+                          )}
+                          
+                          <div 
+                            id="checkin-qr-reader" 
+                            className="w-full rounded overflow-hidden"
+                            style={{ maxWidth: '100%' }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowCheckinQRModal(false)}
+                      className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 shadow-xs ring-gray-300 ring-inset hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                    >
+                      ปิด
                     </button>
                   </div>
                 </div>

@@ -83,6 +83,10 @@ function Dashboard() {
   const [showQRModal, setShowQRModal] = useState(false)
   const [qrClassroom, setQRClassroom] = useState(null)
 
+  // Add these new state variables
+  const [showCheckinQRModal, setShowCheckinQRModal] = useState(false)
+  const [newCheckinStatus, setNewCheckinStatus] = useState(1)
+
   /**
    * useEffect: Fetch user profile if currentUser exists.
    */
@@ -432,9 +436,6 @@ function Dashboard() {
   /**
    * handleCreateCheckin: Creates a new check-in record in the current editingClassroom.
    * Adds a check-in document with code, date, and status to Firestore.
-   * 
-   * สร้างบันทึกการเช็คชื่อใหม่ในห้องเรียนที่กำลังแก้ไขอยู่
-   * เพิ่มเอกสารการเช็คชื่อพร้อมรหัส วันที่ และสถานะลงใน Firestore
    */
   const handleCreateCheckin = async () => {
     if (!newCheckinCode || !newCheckinDate) {
@@ -447,17 +448,28 @@ function Dashboard() {
         {
           code: newCheckinCode,
           date: newCheckinDate,
-          status: 0
+          status: newCheckinStatus  // Start with selected status
         }
       )
-      setCurrentCheckinRecord({
+      
+      const newCheckinRecord = {
         id: checkinRef.id,
         code: newCheckinCode,
         date: newCheckinDate,
-        status: 0
-      })
+        status: newCheckinStatus
+      }
+      
+      // Update current check-in record state
+      setCurrentCheckinRecord(newCheckinRecord)
+      
+      // Add to check-in records list
+      setEditCheckinRecords(prev => [...prev, newCheckinRecord])
+      
       setNewCheckinCode('')
       setNewCheckinDate('')
+      
+      // Automatically show QR code for new check-in
+      setShowCheckinQRModal(true)
     } catch (error) {
       console.error('Error creating check-in record:', error)
       alert('Failed to create check-in record.')
@@ -710,6 +722,70 @@ const handleToggleStudentVerification = async (studentId) => {
   } catch (error) {
     console.error('Error toggling student verification:', error);
     alert('เกิดข้อผิดพลาดในการอัปเดตสถานะนักเรียน');
+  }
+};
+
+/**
+ * handleShowCheckinQR: Displays a QR code for the current check-in session.
+ * Students can scan this code to mark themselves as present.
+ * 
+ * แสดง QR code สำหรับเซสชั่นการเช็คชื่อปัจจุบัน
+ * นักเรียนสามารถสแกนรหัสนี้เพื่อทำเครื่องหมายว่าเข้าเรียน
+ */
+const handleShowCheckinQR = () => {
+  if (!currentCheckinRecord || !editingClassroom) return;
+  setShowCheckinQRModal(true);
+};
+
+/**
+ * handleToggleCheckinStatus: Toggles a check-in record between active, inactive, and finished states.
+ * Updates the status in Firestore and refreshes the local records.
+ * @param {Object} record - The check-in record to update status for
+ * 
+ * สลับสถานะบันทึกการเช็คชื่อระหว่างใช้งานได้ ไม่สามารถใช้งานได้ และเสร็จสิ้น
+ * อัปเดตสถานะใน Firestore และรีเฟรชบันทึกในแอป
+ * @param {Object} record - บันทึกการเช็คชื่อที่ต้องการเปลี่ยนสถานะ
+ */
+const handleToggleCheckinStatus = async (record) => {
+  try {
+    // Determine the next status in the cycle: 1 (active) -> 0 (disabled) -> 2 (finished) -> 1 (active)
+    let newStatus;
+    if (record.status === 1) {
+      newStatus = 0; // Active -> Disabled
+    } else if (record.status === 0) {
+      newStatus = 2; // Disabled -> Finished
+    } else {
+      newStatus = 1; // Finished -> Active (or any other status -> Active)
+    }
+    
+    const checkinDocRef = doc(
+      db,
+      'classroom',
+      editingClassroom.id,
+      'checkin',
+      record.id
+    );
+    
+    await updateDoc(checkinDocRef, {
+      status: newStatus
+    });
+    
+    // Update the local state
+    setEditCheckinRecords(prev => prev.map(item => 
+      item.id === record.id ? {...item, status: newStatus} : item
+    ));
+    
+    // If this was the current check-in record, update it too
+    if (currentCheckinRecord && currentCheckinRecord.id === record.id) {
+      setCurrentCheckinRecord({...currentCheckinRecord, status: newStatus});
+    }
+    
+    const statusText = newStatus === 1 ? 'เปิดใช้งาน' : newStatus === 0 ? 'ปิดใช้งาน' : 'เสร็จสิ้น';
+    alert(`การเช็คชื่อได้ถูก${statusText}แล้ว`);
+    
+  } catch (error) {
+    console.error('Error toggling check-in status:', error);
+    alert('เกิดข้อผิดพลาดในการเปลี่ยนสถานะการเช็คชื่อ');
   }
 };
 
@@ -1010,6 +1086,14 @@ const handleToggleStudentVerification = async (studentId) => {
                                   onChange={(e) => setNewCheckinDate(e.target.value)}
                                   className="w-full font-ChakraPetchTH p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
                                 />
+                                <select
+                                  value={newCheckinStatus}
+                                  onChange={(e) => setNewCheckinStatus(parseInt(e.target.value))}
+                                  className="w-full font-ChakraPetchTH p-3 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                                >
+                                  <option value={1}>เปิดใช้งาน</option>
+                                  <option value={0}>ปิดใช้งาน</option>
+                                </select>
                                 <button
                                   type="button"
                                   onClick={handleCreateCheckin}
@@ -1078,13 +1162,22 @@ const handleToggleStudentVerification = async (studentId) => {
                                     ไม่มีนักเรียนในห้องเรียนนี้
                                   </p>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={handleFinishCheckin}
-                                  className="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition mt-4"
-                                >
-                                  สิ้นสุดการเช็คชื่อ
-                                </button>
+                                <div className="flex space-x-4 mt-4">
+                                  <button
+                                    type="button"
+                                    onClick={handleFinishCheckin}
+                                    className="w-1/2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+                                  >
+                                    สิ้นสุดการเช็คชื่อ
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleShowCheckinQR}
+                                    className="w-1/2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                                  >
+                                    แสดง QR Code เช็คชื่อ
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           )}
@@ -1113,25 +1206,46 @@ const handleToggleStudentVerification = async (studentId) => {
                                       <td className="border font-ChakraPetchTH p-2">{record.code}</td>
                                       <td className="border font-ChakraPetchTH p-2">{record.date}</td>
                                       <td className="border font-ChakraPetchTH p-2">
-                                        {record.status === 0
-                                          ? 'ยังไม่เริ่ม'
-                                          : record.status === 1
-                                          ? 'กำลังดำเนินการ'
-                                          : 'เสร็จสิ้น'}
+                                        {record.status === 0 ? (
+                                          <span className="text-red-600">ปิดใช้งาน</span>
+                                        ) : record.status === 1 ? (
+                                          <span className="text-green-600">กำลังใช้งาน</span>
+                                        ) : (
+                                          <span className="text-gray-500">เสร็จสิ้น</span>
+                                        )}
                                       </td>
                                       <td className="border p-2">
                                         <button
                                           type="button"
                                           onClick={() => handleViewCheckinDetails(record)}
-                                          className="bg-indigo-600 font-ChakraPetchTH text-white px-3 py-1 rounded hover:bg-indigo-700 transition"
+                                          className="bg-indigo-600 font-ChakraPetchTH text-white px-3 py-1 rounded hover:bg-indigo-700 transition mr-2"
                                         >
                                           รายละเอียด
                                         </button>
-                                        {/* ปุ่ม Add Quiz: ไปยังหน้า CreateQuizPage พร้อมส่ง param */}
+                                        
+                                        {/* Status Toggle Button - works for all check-ins */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleCheckinStatus(record)}
+                                          className={`font-ChakraPetchTH text-white px-3 py-1 rounded transition mr-2 ${
+                                            record.status === 1 
+                                              ? 'bg-red-600 hover:bg-red-700' 
+                                              : record.status === 0
+                                                ? 'bg-green-600 hover:bg-green-700'
+                                                : 'bg-blue-600 hover:bg-blue-700'
+                                          }`}
+                                        >
+                                          {record.status === 1 
+                                            ? 'ปิดใช้งาน' 
+                                            : record.status === 0
+                                              ? 'ตั้งเป็นเสร็จสิ้น'
+                                              : 'เปิดใช้งานใหม่'}
+                                        </button>
+                                        
                                         <button
                                           type="button"
                                           onClick={() => handleAddQuiz(record)}
-                                          className="bg-indigo-600 font-ChakraPetchTH text-white px-3 py-1 rounded hover:bg-indigo-700 transition m-2"
+                                          className="bg-indigo-600 font-ChakraPetchTH text-white px-3 py-1 rounded hover:bg-indigo-700 transition"
                                         >
                                           ควิซ
                                         </button>
@@ -1301,6 +1415,40 @@ const handleToggleStudentVerification = async (studentId) => {
         <div className="fixed inset-0 flex items-center justify-center bg-gray-600 bg-opacity-10 z-50">
           <div className="col-span-1 md:col-span-2 relative flex flex-col p-8 border-2 border-dashed border-blue-400 rounded-xl shadow-xl bg-blue-50 w-11/12 md:w-1/2">
             <h3 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">รายละเอียดการเช็คชื่อ</h3>
+            
+            {/* Add QR Code section at the top */}
+            <div className="flex flex-col items-center mb-6">
+              <div className="p-4 bg-white rounded-lg border-2 border-blue-200 shadow-inner">
+                <QRCodeSVG 
+                  id="detail-checkin-qr-code"
+                  value={`https://4r3an.github.io/SC310006-Classroom-Management-System/#/student-checkin/${editingClassroom.id}/${selectedCheckinForDetails.id}`}
+                  size={150}
+                  bgColor={"#ffffff"}
+                  fgColor={"#000000"}
+                  level={"H"}
+                  includeMargin={true}
+                />
+              </div>
+              
+              <div className="mt-2 mb-2 text-center">
+                <p className={`font-ChakraPetchTH mt-2 ${
+                  selectedCheckinForDetails.status === 1 
+                    ? 'text-green-600' 
+                    : selectedCheckinForDetails.status === 0
+                      ? 'text-red-600'
+                      : 'text-gray-600'
+                }`}>
+                  สถานะ: {
+                    selectedCheckinForDetails.status === 1 
+                      ? 'เปิดใช้งาน' 
+                      : selectedCheckinForDetails.status === 0
+                        ? 'ปิดใช้งาน'
+                        : 'เสร็จสิ้น'
+                  }
+                </p>
+              </div>
+            </div>
+
             <p className="text-blue-700 font-ChakraPetchTH mb-2">
               รหัสเช็คชื่อ: {selectedCheckinForDetails.code}
             </p>
@@ -1334,21 +1482,49 @@ const handleToggleStudentVerification = async (studentId) => {
                 </tbody>
               </table>
             </div>
-            <div className="flex justify-end mt-4 space-x-4">
+            <div className="flex justify-between mt-4">
+              {/* New download QR button */}
               <button
                 type="button"
-                onClick={handleDeleteCheckin}
-                className="bg-red-600 font-ChakraPetchTH text-white px-4 py-2 rounded hover:bg-red-700 shadow-xs transition"
+                onClick={() => {
+                  // Create a canvas from the SVG and convert to image
+                  const svgElement = document.getElementById('detail-checkin-qr-code');
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  const svgData = new XMLSerializer().serializeToString(svgElement);
+                  const img = new Image();
+                  img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    const a = document.createElement('a');
+                    a.download = `checkin-${selectedCheckinForDetails.code}.png`;
+                    a.href = canvas.toDataURL('image/png');
+                    a.click();
+                  };
+                  img.src = `data:image/svg+xml;base64,${btoa(svgData)}`;
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 shadow-xs transition font-ChakraPetchTH"
               >
-                ลบบันทึกการเช็คชื่อ
+                ดาวน์โหลด QR
               </button>
-              <button
-                type="button"
-                onClick={() => setShowCheckinDetailsModal(false)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 shadow-xs transition"
-              >
-                ปิด
-              </button>
+              
+              <div className="flex space-x-4">
+                <button
+                  type="button"
+                  onClick={handleDeleteCheckin}
+                  className="bg-red-600 font-ChakraPetchTH text-white px-4 py-2 rounded hover:bg-red-700 shadow-xs transition"
+                >
+                  ลบบันทึกการเช็คชื่อ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCheckinDetailsModal(false)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 shadow-xs transition"
+                >
+                  ปิด
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1496,6 +1672,99 @@ const handleToggleStudentVerification = async (studentId) => {
           </div>
         </div>
       )}
+
+      {/* Modal: QR Code for check-in */}
+{showCheckinQRModal && currentCheckinRecord && editingClassroom && (
+  <div className="fixed inset-0 flex items-center justify-center bg-gray-600 bg-opacity-50 z-50">
+    <div className="bg-white rounded-lg p-8 shadow-xl w-11/12 md:w-96 relative">
+      <button 
+        onClick={() => setShowCheckinQRModal(false)} 
+        className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      
+      <h3 className="text-xl font-ChakraPetchTH text-center mb-4 text-blue-900">
+        QR Code เช็คชื่อเข้าเรียน
+      </h3>
+      
+      <div className="flex flex-col items-center">
+        <div className="p-4 bg-white rounded-lg border-2 border-blue-200 shadow-inner">
+          <QRCodeSVG 
+            id="checkin-qr-code"
+            value={`https://4r3an.github.io/SC310006-Classroom-Management-System/#/student-checkin/${editingClassroom.id}/${currentCheckinRecord.id}`}
+            size={200}
+            bgColor={"#ffffff"}
+            fgColor={"#000000"}
+            level={"H"}
+            includeMargin={true}
+          />
+        </div>
+        
+        <div className="mt-4 text-center">
+          <p className="font-ChakraPetchTH text-lg font-bold text-blue-900">
+            {editingClassroom.info.name}
+          </p>
+          <p className="font-InterEN text-gray-600">
+            รหัสเช็คชื่อ: {currentCheckinRecord.code}
+          </p>
+          <p className="font-InterEN text-gray-600">
+            เวลา: {currentCheckinRecord.date}
+          </p>
+          <p className={`font-ChakraPetchTH mt-2 ${
+            currentCheckinRecord.status === 1 
+              ? 'text-green-600' 
+              : currentCheckinRecord.status === 0
+                ? 'text-red-600'
+                : 'text-gray-600'
+          }`}>
+            สถานะ: {
+              currentCheckinRecord.status === 1 
+                ? 'เปิดใช้งาน' 
+                : currentCheckinRecord.status === 0
+                  ? 'ปิดใช้งาน'
+                  : 'เสร็จสิ้น'
+            }
+          </p>
+        </div>
+        
+        <div className="mt-6">
+          <button
+            onClick={() => setShowCheckinQRModal(false)}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition font-ChakraPetchTH mr-2"
+          >
+            ปิด
+          </button>
+          <button
+            onClick={() => {
+              // Create a canvas from the SVG and convert to image
+              const svgElement = document.getElementById('checkin-qr-code');
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const svgData = new XMLSerializer().serializeToString(svgElement);
+              const img = new Image();
+              img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                const a = document.createElement('a');
+                a.download = `checkin-${currentCheckinRecord.code}.png`;
+                a.href = canvas.toDataURL('image/png');
+                a.click();
+              };
+              img.src = `data:image/svg+xml;base64,${btoa(svgData)}`;
+            }}
+            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition font-ChakraPetchTH"
+          >
+            ดาวน์โหลด QR
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   )
 }
