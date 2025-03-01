@@ -673,85 +673,152 @@ function StudentDashboard() {
           </>
         )}
 
-        {/* ถ้าเลือกห้อง => แสดงรายการ quiz */}
+        {/* ถ้าเลือกห้อง => แสดงการเช็คชื่อและ quiz แยกเป็นส่วนๆ ชัดเจน */}
         {!loading && selectedClassroom && (
-          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-blue-900">การเช็คชื่อ</h2>
-              <button
-                onClick={() => handleShowCheckinInClassroom(selectedClassroom)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-ChakraPetchTH shadow-md"
-              >
-                เช็คชื่อเข้าเรียน
-              </button>
-            </div>
-            <p className="text-gray-600">กดปุ่มเช็คชื่อเพื่อสแกน QR Code ที่อาจารย์แสดง</p>
-          </div>
-        )}
-
-        {!loading && selectedClassroom && (
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-2xl font-bold mb-6 text-blue-900">แบบทดสอบ (Quiz)</h2>
-            {questions.length === 0 ? (
-              <p className="text-gray-600">ยังไม่มีควิซ</p>
-            ) : (
-              <div className="space-y-6">
-                {questions.map((q) => {
-                  // คำตอบที่พิมพ์/เลือกไว้ (ใน state)
-                  const ansValue = answersInput[q.questionDocId] || ''
-                  return (
-                    <div
-                      key={q.questionDocId}
-                      className="border p-4 rounded-md hover:bg-blue-50 transition"
-                    >
-                      <p className="font-semibold mb-2 text-blue-900">
-                        คำถาม #{q.question_no} [{q.checkinCode || '-'}] : {q.question_text}
-                      </p>
-
-                      {/* ถ้าเป็นปรนัย => มี choices */}
-                      {q.question_type === 'objective' && Array.isArray(q.choices) && q.choices.length > 0 ? (
-                        <div className="flex flex-col space-y-2 mb-2">
-                          {q.choices.map((choice, idx) => (
-                            <label key={idx} className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                name={`q_${q.questionDocId}`}
-                                value={choice}
-                                checked={ansValue === choice}
-                                onChange={(e) =>
-                                  handleAnswerChange(q.questionDocId, e.target.value)
-                                }
-                              />
-                              <span>{choice}</span>
-                            </label>
-                          ))}
-                        </div>
-                      ) : (
-                        // ถ้าเป็นอัตนัย => ช่องกรอก
-                        <input
-                          type="text"
-                          placeholder="Type your answer here..."
-                          className="w-full p-2 border rounded mb-2"
-                          value={ansValue}
-                          onChange={(e) =>
-                            handleAnswerChange(q.questionDocId, e.target.value)
-                          }
-                        />
-                      )}
-
-                      <button
-                        onClick={() => handleSubmitAnswer(q)}
-                        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-                      >
-                        ส่งคำตอบ
-                      </button>
-                    </div>
-                  )
-                })}
+          <div className="space-y-6">
+            {/* SECTION 1: Classroom Info */}
+            <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-blue-900 font-ChakraPetchTH">
+                  <span className="inline-block mr-2">📚</span> 
+                  ข้อมูลห้องเรียน
+                </h2>
               </div>
-            )}
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <p className="text-gray-700 mb-2">
+                    <span className="font-bold">รหัสวิชา:</span> {selectedClassroom.info?.code || 'N/A'}
+                  </p>
+                  <p className="text-gray-700 mb-2">
+                    <span className="font-bold">ชื่อวิชา:</span> {selectedClassroom.info?.name || 'N/A'}
+                  </p>
+                  <p className="text-gray-700 mb-2">
+                    <span className="font-bold">ห้องเรียน:</span> {selectedClassroom.info?.room || 'N/A'}
+                  </p>
+                </div>
+                {selectedClassroom.info?.photo && (
+                  <div className="flex justify-center">
+                    <img 
+                      src={selectedClassroom.info.photo} 
+                      alt={selectedClassroom.info.name}
+                      className="w-full max-w-xs rounded-md object-cover" 
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SECTION 2: Check-in */}
+            <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-blue-900 font-ChakraPetchTH">
+                  <span className="inline-block mr-2">✅</span>
+                  การเช็คชื่อเข้าเรียน
+                </h2>
+                <button
+                  onClick={() => handleShowCheckinInClassroom(selectedClassroom)}
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition font-ChakraPetchTH shadow-md flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  เช็คชื่อเข้าเรียน
+                </button>
+              </div>
+              <div className="mt-3">
+                <p className="text-gray-600 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 inline-block mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  กดปุ่มเช็คชื่อเพื่อสแกน QR Code ที่อาจารย์แสดง เพื่อบันทึกการเข้าเรียนของคุณ
+                </p>
+              </div>
+            </div>
+
+            {/* SECTION 3: Quiz */}
+            <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-indigo-500">
+              <h2 className="text-2xl font-bold text-blue-900 font-ChakraPetchTH mb-4">
+                <span className="inline-block mr-2">📝</span>
+                แบบทดสอบ (Quiz)
+              </h2>
+              
+              {questions.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-gray-600 font-ChakraPetchTH">ยังไม่มีควิซในขณะนี้</p>
+                  <p className="text-gray-500 text-sm font-ChakraPetchTH mt-1">อาจารย์จะเพิ่มควิซเมื่อต้องการให้คุณตอบคำถาม</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {questions.map((q) => {
+                    // คำตอบที่พิมพ์/เลือกไว้ (ใน state)
+                    const ansValue = answersInput[q.questionDocId] || '';
+                    return (
+                      <div
+                        key={q.questionDocId}
+                        className="border-2 border-indigo-100 p-6 rounded-lg hover:bg-indigo-50 transition bg-white"
+                      >
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="font-semibold text-lg text-indigo-900 font-ChakraPetchTH">
+                            คำถาม #{q.question_no}
+                          </h3>
+                          <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm">
+                            รหัสเช็คชื่อ: {q.checkinCode || '-'}
+                          </span>
+                        </div>
+                        
+                        <p className="font-medium mb-4 text-gray-800 font-ChakraPetchTH">
+                          {q.question_text}
+                        </p>
+
+                        {/* ถ้าเป็นปรนัย => มี choices */}
+                        {q.question_type === 'objective' && Array.isArray(q.choices) && q.choices.length > 0 ? (
+                          <div className="flex flex-col space-y-3 mb-4 bg-white p-4 rounded-lg border border-indigo-100">
+                            {q.choices.map((choice, idx) => (
+                              <label key={idx} className="flex items-center space-x-3 p-2 rounded hover:bg-indigo-50 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`q_${q.questionDocId}`}
+                                  value={choice}
+                                  checked={ansValue === choice}
+                                  onChange={(e) => handleAnswerChange(q.questionDocId, e.target.value)}
+                                  className="h-5 w-5 text-indigo-600"
+                                />
+                                <span className="font-ChakraPetchTH">{choice}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          // ถ้าเป็นอัตนัย => ช่องกรอก
+                          <textarea
+                            placeholder="พิมพ์คำตอบของคุณที่นี่..."
+                            className="w-full p-3 border border-indigo-200 rounded-lg focus:ring focus:ring-indigo-200 focus:outline-none mb-4"
+                            rows="3"
+                            value={ansValue}
+                            onChange={(e) => handleAnswerChange(q.questionDocId, e.target.value)}
+                          ></textarea>
+                        )}
+
+                        <button
+                          onClick={() => handleSubmitAnswer(q)}
+                          className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition font-ChakraPetchTH flex items-center"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          ส่งคำตอบ
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
+
         {showSignOutModal && (
           <div className="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
             <div className="fixed inset-0 bg-gray-500/75 transition-opacity" aria-hidden="true"></div>
