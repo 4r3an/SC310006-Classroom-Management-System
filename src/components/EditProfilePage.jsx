@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getAuth, updateProfile } from 'firebase/auth'
+import { getAuth, updateProfile, onAuthStateChanged } from 'firebase/auth'
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore'
 import { app } from '../../firebase_config'
 
 function EditProfilePage() {
-  const auth = getAuth()
+  const auth = getAuth(app)
   const db = getFirestore(app)
   const navigate = useNavigate()
-  const [user, setUser] = useState(auth.currentUser)
+  
+  // Add auth loading state
+  const [authLoading, setAuthLoading] = useState(true)
+  const [user, setUser] = useState(null)
   const [displayName, setDisplayName] = useState('')
   const [photoURL, setPhotoURL] = useState('')
   const [imagePreviewUrl, setImagePreviewUrl] = useState('')
@@ -17,19 +20,36 @@ function EditProfilePage() {
   const [message, setMessage] = useState('')
   const [isEditing, setIsEditing] = useState(false)
 
+  // Listen for authentication state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser)
+      setAuthLoading(false)
+      
+      // Redirect to login if not authenticated
+      if (!currentUser && !authLoading) {
+        navigate('/')
+      }
+    })
+    
+    // Cleanup subscription
+    return () => unsubscribe()
+  }, [auth, navigate, authLoading])
+
   // โหลดข้อมูลโปรไฟล์เมื่อคอมโพเนนต์ถูกโหลด
   useEffect(() => {
-    const loadProfile = async () => {
-      if (!user) return
+    // Only load profile when auth is confirmed and user exists
+    if (authLoading || !user) return
 
+    const loadProfile = async () => {
       try {
         const docRef = doc(db, 'users', user.uid)
         const docSnap = await getDoc(docRef)
         
         if (docSnap.exists()) {
           const data = docSnap.data()
-          setDisplayName(data.name || '') // เปลี่ยนจาก displayName เป็น name
-          setPhotoURL(data.photo || '') // เปลี่ยนจาก photoURL เป็น photo
+          setDisplayName(data.name || '')
+          setPhotoURL(data.photo || '')
           setImagePreviewUrl(data.photo || '')
           setIsEditing(false)
         }
@@ -39,7 +59,7 @@ function EditProfilePage() {
     }
 
     loadProfile()
-  }, [user, db])
+  }, [user, db, authLoading])
 
   const handlePhotoURLChange = (e) => {
     const url = e.target.value
@@ -118,6 +138,18 @@ function EditProfilePage() {
     ) % colors.length;
     
     return colors[index];
+  }
+
+  // Show loading state while auth is being determined
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center p-6 bg-white rounded-lg shadow-md">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-blue-800">กำลังตรวจสอบการเข้าสู่ระบบ...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!user) {

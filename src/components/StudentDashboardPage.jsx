@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { getAuth } from 'firebase/auth'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
 import {
   getFirestore,
   doc,
@@ -18,8 +18,11 @@ import { Html5QrcodeScanner } from "html5-qrcode";
 function StudentDashboard() {
   const auth = getAuth(app)
   const db = getFirestore(app)
-  const currentUser = auth.currentUser
   const navigate = useNavigate()
+
+  // Add this new state for auth loading
+  const [authLoading, setAuthLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState(null)
 
   // Add this at the beginning of StudentDashboard function to check authentication
   useEffect(() => {
@@ -58,60 +61,81 @@ function StudentDashboard() {
   // First, add a new state to store check-in history (add near the other state declarations)
   const [checkinHistory, setCheckinHistory] = useState([]);
 
+  // Replace current authentication check with this
   useEffect(() => {
-    if (!currentUser) {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log("Auth state changed, user:", user);
+      setCurrentUser(user);
+      setAuthLoading(false);
+      
+      // If no user and auth is finished loading, redirect to login
+      if (!user && !authLoading) {
+        navigate('/');
+      }
+    });
+    
+    // Cleanup subscription
+    return () => unsubscribe();
+  }, [auth, navigate]);
+
+  // Replace the initial loading check that redirects
+  useEffect(() => {
+    if (!authLoading && !currentUser) {
       navigate('/')
       return
     }
-
-    // โหลดโปรไฟล์ผู้ใช้ (ชื่อนักเรียน, รูปโปรไฟล์ ฯลฯ)
-    const loadProfile = async () => {
-      try {
-        const userDoc = doc(db, 'users', currentUser.uid)
-        const userSnap = await getDoc(userDoc)
-        if (userSnap.exists()) {
-          setProfile(userSnap.data())
-        }
-      } catch (error) {
-        console.error('Error loading user profile:', error)
-      }
-    }
-
-    // โหลดห้องเรียนทั้งหมดที่มี sub-collection "students" แล้ว doc(...).stdid == currentUser.uid
-    const loadClassrooms = async () => {
-      try {
-        setLoading(true)
-        const studentsRef = query(
-          collectionGroup(db, 'students'),
-          where('stdid', '==', currentUser.uid)
-        )
-        const snapshot = await getDocs(studentsRef)
-        const parentDocPromises = []
-        snapshot.forEach((docSnap) => {
-          const classroomDocRef = docSnap.ref.parent.parent
-          if (classroomDocRef) {
-            parentDocPromises.push(getDoc(classroomDocRef))
+    
+    // Only load user data if authenticated
+    if (!authLoading && currentUser) {
+      // โหลดโปรไฟล์ผู้ใช้ (ชื่อนักเรียน, รูปโปรไฟล์ ฯลฯ)
+      const loadProfile = async () => {
+        try {
+          const userDoc = doc(db, 'users', currentUser.uid)
+          const userSnap = await getDoc(userDoc)
+          if (userSnap.exists()) {
+            setProfile(userSnap.data())
           }
-        })
-        const classroomDocs = await Promise.all(parentDocPromises)
-        const classroomsData = classroomDocs
-          .map((c) => ({
-            id: c.id,
-            ...c.data(),
-          }))
-          .filter(classroom => classroom.info && classroom.info.name); // Only include classrooms with valid info
-
-        setMyClassrooms(classroomsData)
-      } catch (error) {
-        console.error('Error loading classrooms:', error)
-      } finally {
-        setLoading(false)
+        } catch (error) {
+          console.error('Error loading user profile:', error)
+        }
       }
-    }
 
-    loadProfile()
-    loadClassrooms()
-  }, [currentUser, db, navigate])
+      // โหลดห้องเรียนทั้งหมดที่มี sub-collection "students" แล้ว doc(...).stdid == currentUser.uid
+      const loadClassrooms = async () => {
+        try {
+          setLoading(true)
+          const studentsRef = query(
+            collectionGroup(db, 'students'),
+            where('stdid', '==', currentUser.uid)
+          )
+          const snapshot = await getDocs(studentsRef)
+          const parentDocPromises = []
+          snapshot.forEach((docSnap) => {
+            const classroomDocRef = docSnap.ref.parent.parent
+            if (classroomDocRef) {
+              parentDocPromises.push(getDoc(classroomDocRef))
+            }
+          })
+          const classroomDocs = await Promise.all(parentDocPromises)
+          const classroomsData = classroomDocs
+            .map((c) => ({
+              id: c.id,
+              ...c.data(),
+            }))
+            .filter(classroom => classroom.info && classroom.info.name); // Only include classrooms with valid info
+
+          setMyClassrooms(classroomsData)
+        } catch (error) {
+          console.error('Error loading classrooms:', error)
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      loadProfile()
+      loadClassrooms()
+    }
+  }, [authLoading, currentUser, db, navigate])
 
   // ออกจากระบบ
   const handleSignOut = async () => {
@@ -608,6 +632,18 @@ function StudentDashboard() {
     console.log("Loading state:", loading);
     console.log("Selected classroom:", selectedClassroom);
   }, [loading, selectedClassroom]);
+
+  // Update the return statement to handle auth loading
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-blue-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-2"></div>
+          <p className="text-blue-800">กำลังตรวจสอบการเข้าสู่ระบบ...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!currentUser) return null
 
