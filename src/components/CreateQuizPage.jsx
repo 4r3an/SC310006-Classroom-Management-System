@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom'
-import { getAuth, signOut } from 'firebase/auth'
+import { getAuth, signOut, onAuthStateChanged } from 'firebase/auth'
 import { app } from '../../firebase_config'
 import {
   getFirestore,
@@ -18,6 +18,10 @@ function CreateQuizPage() {
   const navigate = useNavigate()
   const auth = getAuth()
   const db = getFirestore(app)
+
+  // Add auth loading state
+  const [authLoading, setAuthLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState(null)
 
   // รับ classroomId / checkinId จาก param/query
   const { classroomId } = useParams()
@@ -42,11 +46,26 @@ function CreateQuizPage() {
   const [gradingQuestion, setGradingQuestion] = useState(null)
   const [studentAnswers, setStudentAnswers] = useState([])
   const [loadingAnswers, setLoadingAnswers] = useState(false)
+  
+  // State: feedback messages
+  const [feedback, setFeedback] = useState({ type: '', message: '' })
 
   // modal sign out
   const [showSignOutModal, setShowSignOutModal] = useState(false)
 
-  const currentUser = auth.currentUser
+  // Listen for authentication state changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user)
+      setAuthLoading(false)
+      
+      if (!user && !authLoading) {
+        navigate('/')
+      }
+    })
+    
+    return () => unsubscribe()
+  }, [auth, navigate, authLoading])
 
   // โหลดโปรไฟล์ผู้ใช้
   useEffect(() => {
@@ -59,8 +78,11 @@ function CreateQuizPage() {
         }
       }
     }
-    fetchProfile()
-  }, [currentUser, db])
+    
+    if (!authLoading && currentUser) {
+      fetchProfile()
+    }
+  }, [currentUser, db, authLoading])
 
   // โหลดคำถามจาก Firestore
   useEffect(() => {
@@ -75,21 +97,37 @@ function CreateQuizPage() {
         })
         list.sort((a, b) => a.question_no - b.question_no)
         setQuestions(list)
+        
+        // Automatically set next question number for new questions
+        if (!editingQuestionId) {
+          const nextNumber = list.length > 0 
+            ? Math.max(...list.map(q => q.question_no)) + 1 
+            : 1
+          setQuestionNo(nextNumber.toString())
+        }
       } catch (error) {
         console.error('Error loading questions:', error)
       }
     }
     loadQuestions()
-  }, [db, classroomId, checkinId])
+  }, [db, classroomId, checkinId, editingQuestionId])
+
+  // Show feedback message with timeout
+  const showFeedback = (type, message, duration = 3000) => {
+    setFeedback({ type, message })
+    setTimeout(() => {
+      setFeedback({ type: '', message: '' })
+    }, duration)
+  }
 
   // ฟังก์ชันสร้าง/แก้ไขคำถาม
   const handleSaveQuestion = async () => {
     if (!classroomId || !checkinId) {
-      alert('ไม่พบ classroomId หรือ checkinId')
+      showFeedback('error', 'ไม่พบ classroomId หรือ checkinId')
       return
     }
     if (!questionNo || !questionText) {
-      alert('กรุณากรอกหมายเลขและข้อความคำถาม')
+      showFeedback('error', 'กรุณากรอกหมายเลขและข้อความคำถาม')
       return
     }
 
@@ -104,15 +142,10 @@ function CreateQuizPage() {
         choices: questionType === 'objective' ? choices.filter(c => c.trim() !== '') : []
       })
 
-      alert(editingQuestionId ? 'แก้ไขคำถามสำเร็จ' : 'สร้างคำถามสำเร็จ')
-
-      // เคลียร์ฟอร์ม
-      setQuestionNo('')
-      setQuestionText('')
-      setQuestionShow(false)
-      setQuestionType('subjective')
-      setChoices([''])
-      setEditingQuestionId(null)
+      showFeedback(
+        'success', 
+        editingQuestionId ? 'แก้ไขคำถามสำเร็จ' : 'สร้างคำถามสำเร็จ'
+      )
 
       // โหลดคำถามใหม่
       const snap = await getDocs(collection(db, 'classroom', classroomId, 'checkin', checkinId, 'question'))
@@ -122,10 +155,31 @@ function CreateQuizPage() {
       })
       list.sort((a, b) => a.question_no - b.question_no)
       setQuestions(list)
+      
+      // เคลียร์ฟอร์ม (moved after loading questions so resetForm has access to updated list)
+      resetForm()
+      
     } catch (error) {
       console.error('Error saving question:', error)
-      alert('เกิดข้อผิดพลาดในการบันทึกคำถาม')
+      showFeedback('error', 'เกิดข้อผิดพลาดในการบันทึกคำถาม')
     }
+  }
+
+  // Reset form to initial state
+  const resetForm = () => {
+    setQuestionText('')
+    setQuestionShow(false)
+    setQuestionType('subjective')
+    setChoices([''])
+    
+    // Clear the editing state
+    setEditingQuestionId(null)
+    
+    // Always recalculate the next question number when returning to "create" mode
+    const nextNumber = questions.length > 0 
+      ? Math.max(...questions.map(q => parseInt(q.question_no))) + 1 
+      : 1
+    setQuestionNo(nextNumber.toString())
   }
 
   // กดแก้ไขคำถาม
@@ -147,11 +201,11 @@ function CreateQuizPage() {
     if (!window.confirm('คุณแน่ใจหรือไม่ที่จะลบคำถามนี้?')) return
     try {
       await deleteDoc(doc(db, 'classroom', classroomId, 'checkin', checkinId, 'question', questionId))
-      alert('ลบคำถามสำเร็จ')
+      showFeedback('success', 'ลบคำถามสำเร็จ')
       setQuestions(prev => prev.filter((item) => item.id !== questionId))
     } catch (error) {
       console.error('Error deleting question:', error)
-      alert('ไม่สามารถลบคำถามได้')
+      showFeedback('error', 'ไม่สามารถลบคำถามได้')
     }
   }
 
@@ -283,6 +337,20 @@ function CreateQuizPage() {
     }
   }
 
+  // Show loading state while auth is being determined
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-blue-50">
+        <div className="text-center p-6 bg-white rounded-lg shadow-md">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-blue-800 font-ChakraPetchTH">กำลังตรวจสอบการเข้าสู่ระบบ...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!currentUser) return null
+
   return (
     <div className="flex h-screen bg-blue-50 overflow-hidden">
       {/* Sidebar */}
@@ -337,6 +405,17 @@ function CreateQuizPage() {
             ออกจากระบบ
           </button>
         </div>
+
+        {/* Feedback message */}
+        {feedback.message && (
+          <div className={`mb-4 p-3 rounded-md ${
+            feedback.type === 'success' ? 'bg-green-100 text-green-800' : 
+            feedback.type === 'error' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+          }`}>
+            <p className="font-ChakraPetchTH">{feedback.message}</p>
+          </div>
+        )}
+
         <div className="bg-white rounded-lg p-6 shadow-lg">
           <h2 className="text-xl font-ChakraPetchTH mb-4 text-blue-900">
             รหัสห้องเรียน: {classroomId || 'N/A'} | รหัสเช็คอิน: {checkinId || 'N/A'}
@@ -352,31 +431,43 @@ function CreateQuizPage() {
                 <label className="block text-blue-700 mb-1 font-ChakraPetchTH">หมายเลขคำถาม</label>
                 <input
                   type="number"
-                  className="w-full p-2 border rounded"
+                  className={`w-full p-2 border rounded ${!editingQuestionId ? 'bg-gray-100' : ''}`}
                   value={questionNo}
                   onChange={(e) => setQuestionNo(e.target.value)}
+                  readOnly={!editingQuestionId} // Only allow editing question number when editing
                 />
+                {!editingQuestionId && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    หมายเลขคำถามถูกสร้างโดยอัตโนมัติ
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-blue-700 mb-1 font-ChakraPetchTH">แสดงคำถาม?</label>
-                <input
-                  type="checkbox"
-                  checked={questionShow}
-                  onChange={(e) => setQuestionShow(e.target.checked)}
-                  className="h-5 w-5 text-blue-600"
-                />
+                <div className="flex items-center mt-2">
+                  <input
+                    type="checkbox"
+                    id="questionShow"
+                    checked={questionShow}
+                    onChange={(e) => setQuestionShow(e.target.checked)}
+                    className="h-5 w-5 text-blue-600"
+                  />
+                  <label htmlFor="questionShow" className="ml-2 text-gray-700">
+                    {questionShow ? 'แสดงให้นักเรียนเห็น' : 'ซ่อนจากนักเรียน'}
+                  </label>
+                </div>
               </div>
             </div>
 
             <div className="mt-4">
               <label className="block text-blue-700 mb-1 font-ChakraPetchTH">ประเภทคำถาม</label>
               <select
-                className="p-2 border rounded"
+                className="p-2 border rounded w-full md:w-auto"
                 value={questionType}
                 onChange={(e) => setQuestionType(e.target.value)}
               >
-                <option value="subjective">อัตนัย</option>
-                <option value="objective">ปรนัย</option>
+                <option value="subjective">อัตนัย (เขียนตอบ)</option>
+                <option value="objective">ปรนัย (ตัวเลือก)</option>
               </select>
             </div>
 
@@ -384,17 +475,21 @@ function CreateQuizPage() {
               <label className="block text-blue-700 mb-1 font-ChakraPetchTH">ข้อความคำถาม</label>
               <textarea
                 className="w-full p-2 border rounded"
-                rows={2}
+                rows={3}
                 value={questionText}
                 onChange={(e) => setQuestionText(e.target.value)}
+                placeholder="พิมพ์คำถามที่นี่..."
               />
             </div>
 
             {questionType === 'objective' && (
               <div className="mt-4">
-                <label className="block text-blue-700 mb-1 font-ChakraPetchTH">ตัวเลือก</label>
+                <label className="block text-blue-700 mb-2 font-ChakraPetchTH">ตัวเลือก</label>
                 {choices.map((choice, idx) => (
                   <div key={idx} className="flex items-center space-x-2 mb-2">
+                    <div className="flex-none w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                      {String.fromCharCode(65 + idx)}
+                    </div>
                     <input
                       type="text"
                       className="flex-1 p-2 border rounded"
@@ -405,41 +500,45 @@ function CreateQuizPage() {
                     {choices.length > 1 && (
                       <button
                         onClick={() => handleRemoveChoice(idx)}
-                        className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 transition"
+                        className="bg-red-500 text-white px-3 py-1 rounded-full hover:bg-red-600 transition flex-none"
                       >
-                        X
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
                       </button>
                     )}
                   </div>
                 ))}
                 <button
                   onClick={handleAddChoice}
-                  className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition font-ChakraPetchTH"
+                  className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition font-ChakraPetchTH flex items-center mt-2"
                 >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
                   เพิ่มตัวเลือก
                 </button>
               </div>
             )}
 
-            <div className="mt-4">
+            <div className="mt-6 flex flex-wrap gap-2">
               <button
                 onClick={handleSaveQuestion}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition font-ChakraPetchTH mr-2"
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition font-ChakraPetchTH flex items-center"
               >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
                 {editingQuestionId ? 'อัปเดตคำถาม' : 'บันทึกคำถาม'}
               </button>
               {editingQuestionId && (
                 <button
-                  onClick={() => {
-                    setEditingQuestionId(null)
-                    setQuestionNo('')
-                    setQuestionText('')
-                    setQuestionShow(false)
-                    setQuestionType('subjective')
-                    setChoices([''])
-                  }}
-                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 transition font-ChakraPetchTH"
+                  onClick={resetForm}
+                  className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500 transition font-ChakraPetchTH flex items-center"
                 >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
                   ยกเลิก
                 </button>
               )}
