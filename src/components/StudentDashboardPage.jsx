@@ -15,6 +15,122 @@ import { app } from '../../firebase_config'
 import { useNavigate } from 'react-router-dom'
 import { Html5QrcodeScanner } from "html5-qrcode";
 
+// Add this new component at the top of your file, before StudentDashboard function
+const ProfileImage = ({ photoURL, name, email, size = "medium" }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  
+  const sizeClasses = {
+    small: "w-8 h-8",
+    medium: "w-12 h-12",
+    large: "w-16 h-16"
+  };
+  
+  // Generate initials from name or email
+  const getInitials = () => {
+    if (name) {
+      return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    } else if (email) {
+      return email[0].toUpperCase();
+    }
+    return 'N/A';
+  };
+  
+  // Generate a background color based on email or name
+  const getAvatarColor = () => {
+    const colorSource = name || email || 'default';
+    const colors = [
+      'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 
+      'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500'
+    ];
+    
+    const index = colorSource.split('').reduce(
+      (acc, char) => acc + char.charCodeAt(0), 0
+    ) % colors.length;
+    
+    return colors[index];
+  };
+
+  const handleImageLoad = () => {
+    setIsLoading(false);
+    setHasError(false);
+  };
+
+  const handleImageError = () => {
+    setIsLoading(false);
+    setHasError(true);
+  };
+  
+  if (!photoURL || hasError) {
+    // Fallback to initials avatar when no photo or error loading
+    return (
+      <div className={`${sizeClasses[size]} rounded-full flex items-center justify-center ${getAvatarColor()}`}>
+        <span className="text-white font-semibold">
+          {getInitials()}
+        </span>
+      </div>
+    );
+  }
+  
+  return (
+    <div className={`${sizeClasses[size]} rounded-full relative overflow-hidden`}>
+      {/* Show loading spinner while image loads */}
+      {isLoading && (
+        <div className={`absolute inset-0 flex items-center justify-center ${getAvatarColor()}`}>
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      )}
+      
+      <img
+        src={photoURL}
+        alt={name || "Profile"}
+        className={`${sizeClasses[size]} object-cover ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+      />
+    </div>
+  );
+};
+
+// Add this component in your file, after ProfileImage component
+const ClassroomImage = ({ imageUrl, altText, className = "" }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  
+  const handleImageLoad = () => {
+    setIsLoading(false);
+  };
+
+  const handleImageError = () => {
+    setIsLoading(false);
+    setHasError(true);
+  };
+  
+  return (
+    <div className={`relative w-full h-40 bg-blue-100 rounded-md overflow-hidden ${className}`}>
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-blue-300 border-t-blue-500 rounded-full animate-spin"></div>
+        </div>
+      )}
+      
+      {hasError ? (
+        <div className="w-full h-full bg-blue-300 flex items-center justify-center">
+          <span className="text-white font-medium">No Image</span>
+        </div>
+      ) : (
+        <img
+          src={imageUrl}
+          alt={altText || "Classroom"}
+          className={`w-full h-full object-cover ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+        />
+      )}
+    </div>
+  );
+};
+
 function StudentDashboard() {
   const auth = getAuth(app)
   const db = getFirestore(app)
@@ -673,19 +789,14 @@ function StudentDashboard() {
           </div>
         </div>
         <div className="flex items-center pt-6 border-t border-blue-700">
-          {profile && profile.photo ? (
-            <img
-              src={profile.photo}
-              alt="Profile"
-              className="w-12 h-12 rounded-full mr-4"
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center mr-4">
-              <span className="text-lg text-white">N/A</span>
-            </div>
-          )}
-          <div>
-            <p className="font-bold">{profile?.name || currentUser.email}</p>
+          <ProfileImage 
+            photoURL={profile?.photo} 
+            name={profile?.name} 
+            email={currentUser?.email} 
+            size="medium"
+          />
+          <div className="ml-4">
+            <p className="font-bold">{profile?.name || currentUser?.email}</p>
             <p className="text-sm">Status : Student</p>
           </div>
         </div>
@@ -744,17 +855,11 @@ function StudentDashboard() {
                       className="border rounded-lg shadow-md p-4 bg-white hover:shadow-xl transition cursor-pointer"
                       onClick={() => handleEnterClassroom(classroom)}
                     >
-                      {info.photo ? (
-                        <img
-                          src={info.photo}
-                          alt={info.name}
-                          className="w-full h-40 object-cover rounded-md mb-4"
-                        />
-                      ) : (
-                        <div className="w-full h-40 bg-blue-300 flex items-center justify-center rounded-md mb-4">
-                          <span className="text-white">No Image</span>
-                        </div>
-                      )}
+                      <ClassroomImage 
+                        imageUrl={info.photo} 
+                        altText={info.name} 
+                        className="mb-4" 
+                      />
                       <h2 className="text-xl font-bold text-blue-900">{info.name}</h2>
                       <p className="text-blue-700 text-lg">Code : {info.code}</p>
                       <p className="text-blue-700 text-lg">Room : {info.room}</p>
@@ -791,10 +896,10 @@ function StudentDashboard() {
                 </div>
                 {selectedClassroom.info?.photo && (
                   <div className="flex justify-center">
-                    <img 
-                      src={selectedClassroom.info.photo} 
-                      alt={selectedClassroom.info.name}
-                      className="w-full max-w-xs rounded-md object-cover" 
+                    <ClassroomImage 
+                      imageUrl={selectedClassroom.info.photo} 
+                      altText={selectedClassroom.info.name}
+                      className="w-full max-w-xs rounded-md" 
                     />
                   </div>
                 )}
