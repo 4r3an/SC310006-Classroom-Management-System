@@ -7,12 +7,14 @@ import EditClassroom from './components/EditClassroom'
 import StudentDashboardPage from './components/StudentDashboardPage'
 import CreateQuizPage from './components/CreateQuizPage'
 import StudentClassroomDetailPage from './components/StudentClassroomDetailPage'
+import RegisterPage from './components/RegisterPage'
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/student-dashboard" element={<StudentDashboardPage />} />
         <Route path="/edit-profile" element={<EditProfilePage />} />
